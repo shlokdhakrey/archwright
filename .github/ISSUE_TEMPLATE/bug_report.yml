@@ -1,0 +1,39 @@
+name: Bug report
+description: Report incorrect behaviour
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including the expected behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Ideally a request (method, path, headers) and the response you got.
+      placeholder: |
+        curl -i -H 'Range: bytes=0-1023' https://worker.example/movie.mkv
+    validations:
+      required: true
+  - type: input
+    id: request-id
+    attributes:
+      label: x-request-id
+      description: The `x-request-id` header from the failing response, if available.
+  - type: dropdown
+    id: plan
+    attributes:
+      label: Cloudflare plan
+      options:
+        - Free
+        - Paid / Standard
+        - Enterprise
+        - Unknown
+  - type: textarea
+    id: archive
+    attributes:
+      label: Archive characteristics
+      description: Size, ZIP64?, compression method (stored/deflate), and how it was produced, if known.

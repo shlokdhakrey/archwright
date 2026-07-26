@@ -1,0 +1,7 @@
+# Default owners for everything in the repo.
+* @your-org/maintainers
+
+# The ZIP and streaming cores are correctness-critical — require domain review.
+/src/zip/ @your-org/maintainers
+/src/streaming/ @your-org/maintainers
+/src/http/ @your-org/maintainers

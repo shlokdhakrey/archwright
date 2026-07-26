@@ -1,0 +1,20 @@
+{
+  // Single-archive mode: serve entries of ONE archive at the path root.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zipstream-single",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+  "vars": {
+    // The one archive this Worker fronts. Its host is auto-added to the SSRF
+    // allowlist. Prefer setting sensitive/signed URLs via `wrangler secret put`.
+    "ARCHIVE_URL": "https://storage.googleapis.com/your-bucket/archive.zip",
+
+    // Browser behaviour: "inline" lets media play in-page; "attachment" forces
+    // a download.
+    "CONTENT_DISPOSITION": "inline",
+
+    "LOG_LEVEL": "info",
+    "CACHE_TTL_SECONDS": "3600"
+  }
+}

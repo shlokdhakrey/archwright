@@ -1,0 +1,17 @@
+# Local development variables for `wrangler dev`.
+# Copy to `.dev.vars` (git-ignored) and fill in. These override wrangler.jsonc `vars`.
+
+# Single-archive mode: serve entries of one archive at the path root.
+# The included example points at the public test archive used in the docs.
+ARCHIVE_URL="https://storage.googleapis.com/example-bucket/path/to/archive.zip"
+
+# SSRF allowlist. Required in multi-archive mode; recommended always.
+# Comma-separated hostnames (exact match, case-insensitive). Leave empty in
+# single-archive mode to auto-allow only the ARCHIVE_URL host.
+ALLOWED_ARCHIVE_HOSTS="storage.googleapis.com"
+
+# Optional HMAC secret enabling signed archive references in multi-archive mode.
+# Generate with: openssl rand -hex 32
+# ARCHIVE_SIGNING_SECRET=""
+
+LOG_LEVEL="debug"

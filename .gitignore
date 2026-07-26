@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.wrangler/
+worker-configuration.d.ts
+
+# Test / coverage
+coverage/
+*.log
+
+# Wrangler local state & secrets
+.dev.vars
+.env
+.env.*
+!.dev.vars.example
+!.env.example
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

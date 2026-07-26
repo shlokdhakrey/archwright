@@ -1,0 +1,90 @@
+{
+  // Cloudflare Workers configuration.
+  // Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zipstream",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+
+  // No compatibility flags are required. This Worker deliberately avoids Node
+  // built-ins and relies only on Web/Workers standard APIs (fetch, Streams,
+  // DecompressionStream, Web Crypto, Cache API), so it runs on the lean runtime
+  // with the fastest cold start and works identically on Free and Paid plans.
+  "compatibility_flags": [],
+
+  // Native Workers Logs / observability. Free to enable; safe on all plans.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+
+  // Configuration values. These are safe, public defaults; override per
+  // environment or via `wrangler secret put` for sensitive values.
+  //
+  // ARCHIVE_URL: when set, the Worker runs in single-archive mode and serves
+  //   entries of this archive at the path root (e.g. GET /movie.mkv). Leave it
+  //   empty to run in multi-archive mode (see ALLOWED_ARCHIVE_HOSTS).
+  // ALLOWED_ARCHIVE_HOSTS: comma-separated allowlist of origin hostnames the
+  //   Worker is permitted to fetch archives from. Required for multi-archive
+  //   mode; also enforced in single-archive mode as SSRF defense-in-depth.
+  "vars": {
+    "ARCHIVE_URL": "",
+    "ALLOWED_ARCHIVE_HOSTS": "",
+    "CONTROL_PREFIX": "__",
+    "CORS_ALLOW_ORIGIN": "*",
+    "LOG_LEVEL": "info",
+    "CACHE_TTL_SECONDS": "3600",
+    "ORIGIN_TIMEOUT_MS": "15000",
+    "ORIGIN_RETRIES": "2",
+    "MAX_CENTRAL_DIRECTORY_BYTES": "67108864",
+    "MAX_ENTRY_COUNT": "100000",
+    "MAX_UNCOMPRESSED_BYTES": "0",
+    "MAX_COMPRESSION_RATIO": "0",
+    // "attachment" → bare links download; "inline" → browser previews.
+    // Per-request `?inline` / `?download` flags override this default.
+    "CONTENT_DISPOSITION": "attachment",
+
+    // Browser UI at `/` (paste a link, list files, download). Set to "false"
+    // to serve the JSON index instead.
+    "SERVE_UI": "true",
+
+    // Multi-archive mode only. "true" lets the UI/API accept ANY public archive
+    // host (private/reserved IPs stay blocked) — the "paste any link" experience.
+    // Leave "false" and use ALLOWED_ARCHIVE_HOSTS (or a signing secret) for a
+    // locked-down deployment. Enabling this makes the Worker a public proxy.
+    "ALLOW_ANY_ARCHIVE_HOST": "true",
+
+    // Max files in a single combined-ZIP download.
+    "MAX_ZIP_ENTRIES": "64"
+  },
+
+  // NOTE: `limits.cpu_ms` (Paid-plan CPU headroom, up to 5 min) is NOT set here
+  // because it is rejected on the Free plan. On a Paid plan, add it for large
+  // DEFLATE entries:  "limits": { "cpu_ms": 300000 }
+
+  // LINKS_KV backs the short-link feature: it maps a short code to the full
+  // (often huge, signed) archive URL, so the UI can hand out /s/{code}/{file}
+  // links instead of the giant base64 /a/{ref}/… form. Required for /__/shorten
+  // and /s/ routes; the Worker falls back to base64 refs when it is absent.
+  "kv_namespaces": [
+    { "binding": "LINKS_KV", "id": "1a915837561d49c4bb4d4883827c016d" }
+  ],
+
+  // --- Optional bindings (uncomment to enable; all are optional) ---------------
+  //
+  // A KV namespace lets parsed archive metadata survive across colos. The Worker
+  // detects the binding at runtime and uses it only when present, so the Free
+  // deployment works without it. (Distinct from LINKS_KV above.)
+  // "kv_namespaces": [
+  //   { "binding": "METADATA_KV", "id": "<your-kv-namespace-id>" }
+  // ],
+  //
+  // Analytics Engine gives you queryable, low-cost custom metrics. Optional.
+  // "analytics_engine_datasets": [
+  //   { "binding": "METRICS", "dataset": "zipstream_metrics" }
+  // ],
+  //
+  // Paid-plan CPU headroom for large DEFLATE archives (ignored on Free, which is
+  // capped at 10ms). STORED archives do not need this.
+  // "limits": { "cpu_ms": 300000 }
+}

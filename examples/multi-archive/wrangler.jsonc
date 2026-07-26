@@ -1,0 +1,23 @@
+{
+  // Multi-archive mode: front many archives, addressed via /a/{ref}/{entry}.
+  // Leave ARCHIVE_URL empty (or omit it) to select this mode.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zipstream-multi",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+  "vars": {
+    "ARCHIVE_URL": "",
+
+    // REQUIRED in multi-archive mode (unless you use signed refs): the set of
+    // hosts the Worker is allowed to fetch archives from. Without this AND
+    // without a signing secret, the Worker refuses to proxy (no open proxy).
+    "ALLOWED_ARCHIVE_HOSTS": "storage.googleapis.com,my-bucket.r2.cloudflarestorage.com",
+
+    "CONTENT_DISPOSITION": "attachment",
+    "LOG_LEVEL": "info"
+  }
+
+  // Optional: enable HMAC-signed references for tamper-proof, expiring links.
+  // Set the secret out-of-band:  wrangler secret put ARCHIVE_SIGNING_SECRET
+}
