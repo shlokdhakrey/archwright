@@ -38,16 +38,16 @@
     "bench": "node benchmarks/bench.mjs"
   },
   "devDependencies": {
-    "@eslint/js": "^9.15.0",
-    "@types/node": "^22.9.0",
-    "@vitest/coverage-v8": "^2.1.9",
-    "eslint": "^9.15.0",
-    "eslint-config-prettier": "^9.1.0",
-    "globals": "^15.12.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.7.0",
     "prettier": "^3.3.3",
-    "typescript": "^5.7.2",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.15.0",
-    "vitest": "^2.1.9",
+    "vitest": "^4.1.10",
     "wrangler": "^4.20.5"
   }
 }
