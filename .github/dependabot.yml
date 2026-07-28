@@ -3,18 +3,33 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    # One grouped PR for routine dev-dependency updates instead of many.
     groups:
       dev-dependencies:
         dependency-type: development
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
+    ignore:
+      # Major bumps are migrations (e.g. TypeScript 5→7, ESLint 9→10), not
+      # routine updates — surface them manually rather than as auto-PRs.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 3
     labels:
       - dependencies
       - ci
+    # Collapse all action bumps into a single PR.
+    groups:
+      actions:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
