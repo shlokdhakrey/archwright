@@ -61,6 +61,8 @@ export function renderAppPage(config: UiConfig): string {
   td.name { word-break: break-all; }
   tr:hover td { background: var(--row-hover); }
   a.dl { color: var(--accent); text-decoration: none; font-size: 13px; }
+  td.actions { display: flex; gap: 12px; }
+  a.play::before { content: "▶"; font-size: 9px; margin-right: 4px; vertical-align: 1px; }
   .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel);
     border-top: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center;
     gap: 12px; justify-content: center; }
@@ -115,7 +117,7 @@ export function renderAppPage(config: UiConfig): string {
           <th>Name</th>
           <th style="width:120px">Size</th>
           <th style="width:120px">Type</th>
-          <th style="width:80px"></th>
+          <th style="width:150px"></th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -254,16 +256,24 @@ export function renderAppPage(config: UiConfig): string {
     var rows = $('rows'); rows.innerHTML = '';
     entries.forEach(function (e, i) {
       var tr = document.createElement('tr');
+      // Audio and video can be played straight from inside the archive.
+      var type = e.contentType || '';
+      var playable = type.indexOf('video/') === 0 || type.indexOf('audio/') === 0;
       tr.innerHTML =
         '<td><input type="checkbox" data-i="' + i + '"></td>' +
         '<td class="name"></td>' +
         '<td class="size">' + human(e.size) + '</td>' +
         '<td class="type">' + (e.method === 'stored' ? 'stored' : 'deflate') + '</td>' +
-        '<td><a class="dl" download>Download</a></td>';
+        '<td class="actions">' +
+          (playable ? '<a class="dl play">Play</a>' : '') +
+          '<a class="dl save" download>Download</a>' +
+        '</td>';
       tr.querySelector('.name').textContent = e.name;
-      var a = tr.querySelector('a.dl');
-      a.href = downloadUrl(e.name);
-      a.setAttribute('download', e.name.split('/').pop());
+      var save = tr.querySelector('a.save');
+      save.href = downloadUrl(e.name);
+      save.setAttribute('download', e.name.split('/').pop());
+      var play = tr.querySelector('a.play');
+      if (play) play.href = listBase() + '/' + ZS.prefix + '/play/' + encodePath(e.name);
       rows.appendChild(tr);
     });
     $('results').className = entries.length ? '' : 'hidden';

@@ -94,6 +94,43 @@ entry is unsupported). Ranges are not supported on this endpoint.
 
 ---
 
+## `GET` / `HEAD` `/__/play/{entryPath}` — play media from inside the archive
+
+Returns a player page for an audio or video entry. Nothing is extracted,
+transcoded or staged: the page points a `<video>`/`<audio>` element at the
+entry's ordinary download URL (with `?inline`), and the browser drives playback
+with the same `Range` requests it would use for any file on a web server.
+
+For a **STORED** entry each seek maps onto a single origin range, so scrubbing to
+any point in a multi-gigabyte video inside a much larger archive costs one small
+fetch. A **DEFLATE** entry must inflate from the start of the entry to reach an
+offset, so deep seeks are slow — the page says which case you are in rather than
+letting you discover it on the scrub bar.
+
+Sibling subtitles are discovered automatically: a file in the same folder whose
+name begins with the video's stem (`Movie.mkv` → `Movie.srt`, `Movie.en.srt`,
+`Movie.forced.eng.vtt`) is attached as a `<track>`, with the language inferred
+from the filename.
+
+**Status codes**: `200`, `400` (entry is not audio or video), `404` (unknown
+entry, or `SERVE_UI=false`), plus the usual archive errors.
+
+> Browsers decode a narrow set of containers. Matroska (`.mkv`) — the most common
+> container for archived video — is **not** among them, even with H.264/AAC
+> inside. The page detects this, and offers the direct stream URL for VLC, mpv,
+> IINA or Infuse, which play it with full seeking.
+
+## `GET` / `HEAD` `/__/subtitle/{entryPath}` — subtitles as WebVTT
+
+Serves a `.srt` or `.vtt` entry as `text/vtt`, the only format `<track>` accepts.
+SubRip is converted on the way out (header line, `.` instead of `,` in
+timestamps, CRLF and BOM normalised); WebVTT passes through. Bounded to 4 MiB, as
+the file is read whole to convert it.
+
+**Status codes**: `200`, `400` (not a subtitle), `404`, `413` (over the limit).
+
+---
+
 ## `GET` / `HEAD` `/__/tar` — combined download as TAR
 
 Identical to `/__/zip` in shape (`?path=` repeated, optional `?name=`), but emits

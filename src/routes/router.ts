@@ -6,9 +6,11 @@ import {
   listHandler,
   metaHandler,
   optionsHandler,
+  playHandler,
   prepareBundleHandler,
   rootHandler,
   shortenHandler,
+  subtitleHandler,
   tarHandler,
   uiHandler,
   versionHandler,
@@ -50,6 +52,10 @@ export const router: Handler = async (ctx: RequestContext): Promise<Response> =>
       return tarHandler(ctx, route.archiveUrl);
     case 'meta':
       return metaHandler(ctx, route.archiveUrl, route.entryPath);
+    case 'play':
+      return playHandler(ctx, route.archiveUrl, route.entryPath);
+    case 'subtitle':
+      return subtitleHandler(ctx, route.archiveUrl, route.entryPath);
     case 'download':
       return downloadHandler(ctx, route.archiveUrl, route.entryPath);
   }

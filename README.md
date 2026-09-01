@@ -22,6 +22,7 @@ entry inside a 50 GB archive is served in a 128 MB isolate without breaking a
 sweat.
 
 - ✅ **Built-in web UI** — paste a link, browse the files, download one or many
+- ✅ **Play media from inside the archive** — stream and scrub a video without extracting it; sibling `.srt` subtitles are found and converted to WebVTT automatically
 - ✅ **Combined download** — select multiple files and stream them back as one **ZIP or TAR**, at any size (zero re-compression, native byte pumps)
 - ✅ **Bundles (the reverse direction)** — hand it many remote file URLs and get one permanent `/bundle/{code}.tar` or `.zip`; nothing is stored, everything streams
 - ✅ **Seekable generated archives** — bundles answer `Range` requests, so a multi-gigabyte download **resumes** after a dropped connection, works with download managers, and can be pulled in parallel chunks
@@ -135,6 +136,8 @@ node scripts/probe-archive.mjs "https://storage.googleapis.com/bucket/archive.zi
 | `GET`/`HEAD` | `/bundle/{code}.zip`    | Download a bundle as ZIP (after prepare; resumable)         |
 | `GET`        | `/__/list`              | List entries (paginated, `?prefix=`, `?limit=`, `?cursor=`) |
 | `GET`        | `/__/meta/{entryPath}`  | Metadata for one entry (size, method, ETag, type)           |
+| `GET`        | `/__/play/{entryPath}`  | Player page for an audio/video entry (streams, seeks, subtitles) |
+| `GET`        | `/__/subtitle/{entryPath}` | A `.srt`/`.vtt` entry served as WebVTT                   |
 | `GET`        | `/__/health`            | Liveness probe (never touches the origin)                   |
 | `GET`        | `/__/version`           | Version, mode, effective limits, detected features          |
 | `OPTIONS`    | `*`                     | CORS preflight                                              |

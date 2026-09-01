@@ -24,6 +24,8 @@ export type Route =
   | { readonly kind: 'zip'; readonly archiveUrl: string }
   | { readonly kind: 'tar'; readonly archiveUrl: string }
   | { readonly kind: 'meta'; readonly archiveUrl: string; readonly entryPath: string }
+  | { readonly kind: 'play'; readonly archiveUrl: string; readonly entryPath: string }
+  | { readonly kind: 'subtitle'; readonly archiveUrl: string; readonly entryPath: string }
   | { readonly kind: 'download'; readonly archiveUrl: string; readonly entryPath: string };
 
 const ALLOWED_METHODS = [HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS] as const;
@@ -112,6 +114,16 @@ function resolveSubPath(archiveUrl: string, subPath: string, prefix: string): Ro
   if (subPath === `/${prefix}/list`) return { kind: 'list', archiveUrl };
   if (subPath === `/${prefix}/zip`) return { kind: 'zip', archiveUrl };
   if (subPath === `/${prefix}/tar`) return { kind: 'tar', archiveUrl };
+
+  const playBase = `/${prefix}/play/`;
+  if (subPath.startsWith(playBase)) {
+    return { kind: 'play', archiveUrl, entryPath: subPath.slice(playBase.length) };
+  }
+
+  const subtitleBase = `/${prefix}/subtitle/`;
+  if (subPath.startsWith(subtitleBase)) {
+    return { kind: 'subtitle', archiveUrl, entryPath: subPath.slice(subtitleBase.length) };
+  }
 
   const metaBase = `/${prefix}/meta/`;
   if (subPath.startsWith(metaBase)) {
