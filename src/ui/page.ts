@@ -346,7 +346,8 @@ export function renderAppPage(config: UiConfig): string {
     var btn = $('bzip');
     if (bundle.zipReady) {
       btn.textContent = 'Download .zip';
-      $('bnote').textContent = 'Both formats stream at any size — nothing is stored on the server.';
+      $('bnote').textContent = 'Both formats stream at any size, resume if the connection drops, '
+        + 'and work with download managers. Nothing is stored on the server.';
     } else {
       btn.textContent = 'Prepare .zip';
       $('bnote').textContent = '.tar is ready now and has no size limit. .zip additionally needs a one-time '

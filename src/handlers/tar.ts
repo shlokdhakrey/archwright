@@ -5,6 +5,8 @@ import { contentDisposition } from '../http/content-disposition.js';
 import { assertEntryServable } from '../security/guards.js';
 import { openArchive } from '../services/archive-service.js';
 import { buildEntryStream } from '../streaming/pipeline.js';
+import type { OpenSlice } from '../streaming/segments.js';
+import { sliceStream } from '../streaming/transforms.js';
 import { buildTar, type TarFile } from '../tar/tar-writer.js';
 import type { RequestContext } from '../types/context.js';
 import type { ZipEntry } from '../types/zip.js';
@@ -61,10 +63,15 @@ export async function tarHandler(ctx: RequestContext, archiveUrl: string): Promi
     lastModified: entry.lastModified,
   }));
 
-  const open = (index: number, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> => {
+  const open: OpenSlice = async (index, start, length, signal) => {
     const entry = entries[index];
     if (!entry) throw new NotFoundError('selected entry missing', { index });
-    return openEntry(ctx, archive, entry, signal);
+    const stream = await openEntry(ctx, archive, entry, signal);
+    // This endpoint always asks for whole entries; slice defensively so the
+    // opener stays correct if it is ever driven by a partial request.
+    return start === 0 && length === entry.uncompressedSize
+      ? stream
+      : stream.pipeThrough(sliceStream(start, length));
   };
 
   const tar = buildTar(

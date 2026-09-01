@@ -4,11 +4,14 @@ import {
   ForbiddenError,
   NotFoundError,
   PayloadTooLargeError,
+  RangeNotSatisfiableError,
   ServiceUnavailableError,
   UpstreamError,
 } from '../errors/http-error.js';
+import { isNotModified, isRangeApplicable } from '../http/conditional.js';
 import { contentDisposition } from '../http/content-disposition.js';
 import { fetchWithResilience } from '../http/fetch-with-resilience.js';
+import { formatContentRange, parseRange } from '../http/range.js';
 import { validateArchiveUrl } from '../security/ssrf.js';
 import {
   crcRemaining,
@@ -20,10 +23,20 @@ import {
   type Bundle,
   type BundleFile,
 } from '../services/bundle.js';
-import { buildTar, planTar, type TarFile } from '../tar/tar-writer.js';
+import {
+  sliceSegments,
+  streamSlices,
+  totalLength,
+  wholeSlices,
+  type OpenSlice,
+  type Segment,
+} from '../streaming/segments.js';
+import { sliceStream } from '../streaming/transforms.js';
+import { planTar, tarSegments, type TarFile } from '../tar/tar-writer.js';
 import type { RequestContext } from '../types/context.js';
-import { buildBundleZip, planBundleZip } from '../zip/bundle-zip.js';
-import { CRC32_INIT, crc32Update } from '../zip/crc32.js';
+import type { Validators } from '../types/http.js';
+import { bundleZipSegments, planBundleZip } from '../zip/bundle-zip.js';
+import { crc32, CRC32_INIT, crc32Update } from '../zip/crc32.js';
 import { jsonResponse } from './respond.js';
 
 /**
@@ -305,6 +318,18 @@ export async function prepareBundleHandler(ctx: RequestContext, code: string): P
 
 // --- download ----------------------------------------------------------------
 
+/**
+ * Stream a bundle as TAR or ZIP, **with `Range` support**.
+ *
+ * Because every size (and, for ZIP, every CRC-32) is known before a byte is
+ * fetched, the output is a pure function of position: the archive is described
+ * as a segment map, so any byte window can be computed and served directly. That
+ * makes a generated archive resumable, reachable by download managers, and
+ * parallelisable — and since each range is its own invocation with its own CPU
+ * budget, it also lifts the per-request ceiling on very large archives.
+ *
+ * This is the bargain nginx's `mod_zip` strikes: checksums up front buy Range.
+ */
 export async function bundleDownloadHandler(
   ctx: RequestContext,
   code: string,
@@ -323,58 +348,100 @@ export async function bundleDownloadHandler(
     );
   }
 
-  const open = (index: number, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> => {
-    const file = bundle.files[index];
-    if (!file) throw new NotFoundError('bundle entry missing', { code, index });
-    return openBundleFile(ctx, file, signal);
-  };
+  const segments = archiveSegments(bundle, format);
+  const contentLength = totalLength(segments);
+  const validators = bundleValidators(bundle, format);
 
-  const archive =
-    format === 'tar'
-      ? buildTar(bundle.files.map(toTarFile), open, {
-          signal: ctx.signal,
-          onBytes: (bytes) => { ctx.log.info('bundle streamed', { code, format, bytes }); },
-        })
-      : buildBundleZip(bundle.files, open, {
-          signal: ctx.signal,
-          onBytes: (bytes) => { ctx.log.info('bundle streamed', { code, format, bytes }); },
-        });
+  if (isNotModified(ctx.request, validators)) {
+    const headers = new Headers({ [Header.X_REQUEST_ID]: ctx.requestId });
+    if (validators.etag) headers.set(Header.ETAG, validators.etag);
+    return new Response(null, { status: Status.NOT_MODIFIED, headers });
+  }
+
+  const rangeApplies = isRangeApplicable(ctx.request, validators);
+  const rangeHeader = rangeApplies ? ctx.request.headers.get(Header.RANGE) : null;
+  const range = parseRange(rangeHeader, contentLength);
+  if (range.kind === 'unsatisfiable') {
+    throw new RangeNotSatisfiableError(contentLength);
+  }
+
+  const partial = range.kind === 'satisfiable';
+  const start = partial ? range.range.start : 0;
+  const end = partial ? range.range.end : Math.max(contentLength - 1, 0);
+  const bodyLength = partial ? end - start + 1 : contentLength;
 
   const headers = new Headers({
     [Header.CONTENT_TYPE]: format === 'tar' ? 'application/x-tar' : 'application/zip',
-    [Header.CONTENT_LENGTH]: String(archive.contentLength),
-    [Header.CONTENT_DISPOSITION]: contentDisposition('attachment', `${bundle.name}.${format}`),
-    [Header.CACHE_CONTROL]: 'no-store',
+    [Header.CONTENT_LENGTH]: String(bodyLength),
+    [Header.ACCEPT_RANGES]: 'bytes',
+    [Header.CONTENT_DISPOSITION]: contentDisposition('attachment', bundle.name + '.' + format),
+    // The layout is deterministic, so a code always yields the same bytes.
+    [Header.CACHE_CONTROL]: 'private, max-age=' + String(ctx.config.cacheTtlSeconds),
     [Header.X_REQUEST_ID]: ctx.requestId,
-    'x-bundle-entries': String(archive.entryCount),
+    'x-bundle-entries': String(bundle.files.length),
   });
+  if (validators.etag) headers.set(Header.ETAG, validators.etag);
+  if (partial) headers.set(Header.CONTENT_RANGE, formatContentRange(start, end, contentLength));
 
-  if (isHead) {
-    // Nothing was fetched; drop the writer task's stream on the floor.
-    await archive.body.cancel().catch(() => undefined);
-    return new Response(null, { status: Status.OK, headers });
-  }
-  return new Response(archive.body, { status: Status.OK, headers });
+  const status = partial ? Status.PARTIAL_CONTENT : Status.OK;
+  if (isHead) return new Response(null, { status, headers });
+
+  const slices = partial ? sliceSegments(segments, start, end) : wholeSlices(segments);
+  const open: OpenSlice = (index, offset, length, signal) =>
+    openBundleSlice(ctx, bundle.files[index], offset, length, signal);
+
+  const body = streamSlices(slices, bodyLength, open, {
+    signal: ctx.signal,
+    onBytes: (bytes) => {
+      ctx.log.info('bundle streamed', { code, format, bytes, partial });
+    },
+  });
+  return new Response(body, { status, headers });
+}
+
+/** The archive's byte map for the requested format. */
+function archiveSegments(bundle: Bundle, format: 'tar' | 'zip'): Segment[] {
+  return format === 'tar'
+    ? tarSegments(planTar(bundle.files.map(toTarFile)))
+    : bundleZipSegments(bundle.files).segments;
 }
 
 /**
- * Open one bundle file's bytes for the archive.
- *
- * When the origin supports ranges we ask for the whole file *as a range*
- * (`bytes=0-N`). That guarantees identity-encoded bytes of exactly the length
- * the layout was planned around; a plain GET could arrive re-encoded and a
- * short/long body would corrupt the archive. Any mismatch is failed loudly
- * rather than emitting a broken download.
+ * A strong validator over the *content* of the bundle — names, sizes and
+ * checksums — not the URLs behind it. Re-signing a source URL therefore does not
+ * invalidate a half-finished download, which is exactly what `If-Range` needs.
  */
-async function openBundleFile(
+function bundleValidators(bundle: Bundle, format: 'tar' | 'zip'): Validators {
+  const signature = [
+    format,
+    bundle.name,
+    ...bundle.files.map((file) => file.name + ':' + String(file.size) + ':' + String(file.crc32 ?? '')),
+  ].join('|');
+  const digest = crc32(new TextEncoder().encode(signature)).toString(16);
+  return { etag: '"' + digest + '-' + totalBytes(bundle).toString(16) + '"' };
+}
+
+/**
+ * Open `length` bytes of one bundle file, `start` bytes in.
+ *
+ * A range-capable origin serves that window directly, keeping the read native.
+ * An origin that cannot (it transcodes, so its ranges describe encoded bytes) is
+ * read whole and trimmed in-process — correct, and bounded, because such files
+ * were measured at create time.
+ */
+async function openBundleSlice(
   ctx: RequestContext,
-  file: BundleFile,
+  file: BundleFile | undefined,
+  start: number,
+  length: number,
   signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
-  const headers: Record<string, string> =
-    file.ranged && file.size > 0
-      ? { ...IDENTITY, [Header.RANGE]: `bytes=0-${file.size - 1}` }
-      : { ...IDENTITY };
+  if (!file) throw new NotFoundError('bundle entry missing');
+
+  const headers: Record<string, string> = { ...IDENTITY };
+  if (file.ranged && file.size > 0) {
+    headers[Header.RANGE] = 'bytes=' + String(start) + '-' + String(start + length - 1);
+  }
 
   const response = await fetchWithResilience(
     ctx.deps.fetch,
@@ -393,18 +460,22 @@ async function openBundleFile(
       status: response.status,
     });
   }
-  const length = contentLengthOf(response);
-  if (length !== undefined && length !== file.size) {
+
+  const delivered = contentLengthOf(response);
+  const expected = file.ranged ? length : file.size;
+  if (delivered !== undefined && delivered !== expected) {
     // The layout was planned from the recorded size; a changed (or re-encoded)
-    // file would corrupt the archive.
+    // file would corrupt the archive, so fail rather than emit a broken one.
     await body.cancel().catch(() => undefined);
-    throw new UpstreamError('file size changed since the bundle was created', {
+    throw new UpstreamError('file changed since the bundle was created', {
       url: file.url,
-      expected: file.size,
-      actual: length,
+      expected,
+      actual: delivered,
     });
   }
-  return body;
+
+  if (file.ranged) return body;
+  return start === 0 && length === file.size ? body : body.pipeThrough(sliceStream(start, length));
 }
 
 // --- helpers -----------------------------------------------------------------

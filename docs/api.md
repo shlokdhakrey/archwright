@@ -146,6 +146,40 @@ transcoding origin whose file is too large to measure), `503` (no `LINKS_KV`).
 TAR stores no per-file checksum, so payloads are moved natively and the Worker's
 CPU cost is flat regardless of size. This works the moment the bundle exists.
 
+### Range requests — resumable, seekable archives
+
+Both `/bundle/{code}.tar` and `/bundle/{code}.zip` are **fully seekable**. Because
+every size (and, for ZIP, every CRC-32) is known before a byte is fetched, the
+archive is a pure function of position: any window can be computed and served
+without generating what precedes it.
+
+```
+GET /bundle/{code}.zip
+Range: bytes=1048576-2097151
+→ 206 Partial Content
+  Content-Range: bytes 1048576-2097151/54792310
+  Accept-Ranges: bytes
+  ETag: "28ac1427-3dcb"
+```
+
+Supported: `bytes=a-b`, open-ended `bytes=a-` (what `curl -C -` and every download
+manager send to resume), and suffix `bytes=-n`. An unsatisfiable range returns
+`416` with `Content-Range: bytes */<total>`.
+
+The `ETag` is a strong validator computed over the bundle's *content* — names,
+sizes and checksums — not the URLs behind it, so refreshing an expired signed URL
+does **not** invalidate a half-finished download. `If-Range` and `If-None-Match`
+are honoured (`304` when unchanged).
+
+This is what makes generated archives practical at scale:
+
+| Capability | Why it follows |
+| ---------- | -------------- |
+| Resume after a dropped connection | The client re-requests from its last byte |
+| Download managers / IDM / `aria2c` | They fetch by range; nothing else was needed |
+| Parallel chunk downloads | Windows are independent of each other |
+| No per-request CPU ceiling | Each range is its own invocation — measured at 2–5 ms |
+
 ### `POST` `/__/bundle/{code}/prepare` then `GET /bundle/{code}.zip`
 
 ZIP stores a CRC-32 per entry — the one step that must touch every byte. Call

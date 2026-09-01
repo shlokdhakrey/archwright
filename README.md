@@ -24,6 +24,7 @@ sweat.
 - ✅ **Built-in web UI** — paste a link, browse the files, download one or many
 - ✅ **Combined download** — select multiple files and stream them back as one **ZIP or TAR**, at any size (zero re-compression, native byte pumps)
 - ✅ **Bundles (the reverse direction)** — hand it many remote file URLs and get one permanent `/bundle/{code}.tar` or `.zip`; nothing is stored, everything streams
+- ✅ **Seekable generated archives** — bundles answer `Range` requests, so a multi-gigabyte download **resumes** after a dropped connection, works with download managers, and can be pulled in parallel chunks
 - ✅ **Permanent short links** — turn a giant signed archive URL into a tidy, shareable `/zfile/{code}` (browse) + `/sfile/{code}/{file}` (download); the code is stable across re-signs (KV-backed, auto-loads in the UI)
 - ✅ Zero runtime dependencies · ~30 KiB gzipped bundle
 - ✅ Works on the **Free** and **Paid** plans — full STORED **and DEFLATE** downloads stream at any size on Free (zero-copy, ~0 CPU)
@@ -130,8 +131,8 @@ node scripts/probe-archive.mjs "https://storage.googleapis.com/bucket/archive.zi
 | `GET`/`HEAD` | `/__/tar?path=…&path=…` | Same selection as a TAR                                     |
 | `POST`       | `/__/bundle`            | Bundle many remote file URLs into one permanent archive     |
 | `POST`       | `/__/bundle/{code}/prepare` | Compute the CRC-32s a ZIP bundle needs (resumable)      |
-| `GET`/`HEAD` | `/bundle/{code}.tar`    | Download a bundle as TAR (ready immediately, any size)      |
-| `GET`/`HEAD` | `/bundle/{code}.zip`    | Download a bundle as ZIP (after prepare)                    |
+| `GET`/`HEAD` | `/bundle/{code}.tar`    | Download a bundle as TAR (ready immediately, any size, resumable) |
+| `GET`/`HEAD` | `/bundle/{code}.zip`    | Download a bundle as ZIP (after prepare; resumable)         |
 | `GET`        | `/__/list`              | List entries (paginated, `?prefix=`, `?limit=`, `?cursor=`) |
 | `GET`        | `/__/meta/{entryPath}`  | Metadata for one entry (size, method, ETag, type)           |
 | `GET`        | `/__/health`            | Liveness probe (never touches the origin)                   |

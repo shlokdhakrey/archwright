@@ -84,6 +84,18 @@ Only two things must still touch every byte, and both are inherent:
 and combined ZIP/TAR. The Paid plan (`limits.cpu_ms`) lifts the two inflate/CRC
 ceilings above.
 
+### Generated archives are seekable, which removes the last ceiling
+
+Bundle downloads (`/bundle/{code}.tar` and `.zip`) support `Range`. Once sizes and
+checksums are known the layout is a pure function of position, so a client can ask
+for any window — and each window is a separate invocation with a fresh CPU budget.
+A download that is resumed or fetched in parallel chunks therefore has **no total
+size limit at all**, on any plan. Measured at 2–5 ms of CPU per range request.
+
+This is the same trade nginx's `mod_zip` makes: supply CRC-32s up front and Range
+support follows; omit them and it is disabled. Our prepare pass exists to put the
+bundle in exactly that state.
+
 ## Encrypted and multi-disk archives are unsupported
 
 Traditional/strong ZIP encryption and spanned (multi-disk) archives are refused

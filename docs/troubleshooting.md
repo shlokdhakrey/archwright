@@ -125,6 +125,11 @@ corrupt stream.
 client (including download managers) handles at any size on any plan. If you control
 the archive, `zip -0` sidesteps this entirely.
 
+**Bundles are unaffected too.** `/bundle/{code}.tar` and `.zip` are plain, unencoded
+archives that answer `Range` requests, so download managers handle them natively and
+interrupted downloads resume. If a download manager is the primary client, bundling
+the files is the smoothest path.
+
 ## High CPU / hitting the Free CPU limit
 
 Full DEFLATE/STORED downloads are zero-copy passthroughs and should not spend CPU.

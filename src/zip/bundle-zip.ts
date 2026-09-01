@@ -1,6 +1,12 @@
 import { CompressionMethod } from '../constants/zip.js';
 import type { BundleFile } from '../services/bundle.js';
-import { closePipe, createBytePipe, pumpBody, writeChunk } from '../streaming/native-stream.js';
+import {
+  streamSlices,
+  totalLength,
+  wholeSlices,
+  type OpenSlice,
+  type Segment,
+} from '../streaming/segments.js';
 import type { ZipEntry } from '../types/zip.js';
 import { planCombinedZip } from './zip-writer.js';
 
@@ -38,12 +44,6 @@ export function bundleFileToEntry(file: BundleFile): ZipEntry {
   };
 }
 
-/** Opens the byte stream for the file at `index`. */
-export type OpenBundleEntry = (
-  index: number,
-  signal?: AbortSignal,
-) => Promise<ReadableStream<Uint8Array>>;
-
 export interface BundleZip {
   readonly body: ReadableStream<Uint8Array>;
   readonly contentLength: number;
@@ -56,6 +56,29 @@ export interface BuildBundleZipOptions {
   readonly onBytes?: (bytes: number) => void;
 }
 
+/**
+ * The archive as an addressable byte map: local header then payload per file,
+ * then the central directory and end record. This is what makes a generated ZIP
+ * seekable — and it is only possible because every CRC-32 is already known.
+ */
+export function bundleZipSegments(files: readonly BundleFile[]): {
+  segments: Segment[];
+  contentLength: number;
+  zip64: boolean;
+} {
+  const plan = planCombinedZip(files.map(bundleFileToEntry));
+  const segments: Segment[] = [];
+  plan.planned.forEach((item, index) => {
+    segments.push({ kind: 'bytes', bytes: item.localHeader });
+    if (item.entry.compressedSize > 0) {
+      segments.push({ kind: 'file', index, length: item.entry.compressedSize });
+    }
+  });
+  segments.push({ kind: 'bytes', bytes: plan.centralDirectory });
+  segments.push({ kind: 'bytes', bytes: plan.endRecord });
+  return { segments, contentLength: plan.contentLength, zip64: plan.zip64 };
+}
+
 /** Exact output size without fetching anything. */
 export function planBundleZip(files: readonly BundleFile[]): number {
   return planCombinedZip(files.map(bundleFileToEntry)).contentLength;
@@ -63,34 +86,14 @@ export function planBundleZip(files: readonly BundleFile[]): number {
 
 export function buildBundleZip(
   files: readonly BundleFile[],
-  open: OpenBundleEntry,
+  open: OpenSlice,
   options: BuildBundleZipOptions = {},
 ): BundleZip {
-  const plan = planCombinedZip(files.map(bundleFileToEntry));
-  const pipe = createBytePipe(plan.contentLength);
-
-  void (async () => {
-    try {
-      for (let index = 0; index < plan.planned.length; index++) {
-        const item = plan.planned[index];
-        if (!item) continue;
-        await writeChunk(pipe.writable, item.localHeader);
-        const body = await open(index, options.signal);
-        await pumpBody(pipe.writable, body);
-      }
-      await writeChunk(pipe.writable, plan.centralDirectory);
-      await writeChunk(pipe.writable, plan.endRecord);
-      await closePipe(pipe.writable);
-      options.onBytes?.(plan.contentLength);
-    } catch (error) {
-      await pipe.writable.abort(error).catch(() => undefined);
-    }
-  })();
-
+  const { segments, contentLength, zip64 } = bundleZipSegments(files);
   return {
-    body: pipe.readable,
-    contentLength: plan.contentLength,
+    body: streamSlices(wholeSlices(segments), totalLength(segments), open, options),
+    contentLength,
     entryCount: files.length,
-    zip64: plan.zip64,
+    zip64,
   };
 }

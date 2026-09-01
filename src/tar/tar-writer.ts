@@ -1,4 +1,10 @@
-import { closePipe, createBytePipe, pumpBody, writeChunk } from '../streaming/native-stream.js';
+import {
+  streamSlices,
+  totalLength,
+  wholeSlices,
+  type OpenSlice,
+  type Segment,
+} from '../streaming/segments.js';
 
 /**
  * Streaming TAR (POSIX ustar) writer.
@@ -54,12 +60,6 @@ export interface TarArchive {
   readonly entryCount: number;
 }
 
-/** Opens the byte stream for the file at `index`. */
-export type OpenTarEntry = (
-  index: number,
-  signal?: AbortSignal,
-) => Promise<ReadableStream<Uint8Array>>;
-
 export interface BuildTarOptions {
   readonly signal?: AbortSignal;
   readonly onBytes?: (bytes: number) => void;
@@ -84,47 +84,41 @@ export function planTar(files: readonly TarFile[]): TarPlan {
 }
 
 /**
- * Build the streaming TAR. Bodies are moved natively — they never enter the JS
- * isolate — so CPU cost is independent of archive size.
+ * The archive as an addressable byte map: header, payload and padding per file,
+ * then the zero trailer. Exposing this is what makes a generated TAR seekable —
+ * see `streaming/segments.ts`.
+ */
+export function tarSegments(plan: TarPlan): Segment[] {
+  const segments: Segment[] = [];
+  plan.planned.forEach((item, index) => {
+    segments.push({ kind: 'bytes', bytes: item.header });
+    if (item.file.size > 0) {
+      segments.push({ kind: 'file', index, length: item.file.size });
+    }
+    if (item.padding > 0) {
+      segments.push({ kind: 'bytes', bytes: new Uint8Array(item.padding) });
+    }
+  });
+  segments.push({ kind: 'bytes', bytes: new Uint8Array(TRAILER_BLOCKS * BLOCK) });
+  return segments;
+}
+
+/**
+ * Build the streaming TAR. Payloads are moved natively — they never enter the
+ * JS isolate — so CPU cost is independent of archive size.
  */
 export function buildTar(
   files: readonly TarFile[],
-  open: OpenTarEntry,
+  open: OpenSlice,
   options: BuildTarOptions = {},
 ): TarArchive {
   const plan = planTar(files);
-  const pipe = createBytePipe(plan.contentLength);
-  // Detached writer task: the response body keeps the Worker alive while the
-  // client drains it, so this runs to completion as the bytes are consumed.
-  void writeTar(plan, open, pipe.writable, options);
-  return { body: pipe.readable, contentLength: plan.contentLength, entryCount: files.length };
-}
-
-async function writeTar(
-  plan: TarPlan,
-  open: OpenTarEntry,
-  writable: WritableStream<Uint8Array>,
-  options: BuildTarOptions,
-): Promise<void> {
-  const { signal } = options;
-  try {
-    for (let index = 0; index < plan.planned.length; index++) {
-      const item = plan.planned[index];
-      if (!item) continue;
-      await writeChunk(writable, item.header);
-      const body = await open(index, signal);
-      await pumpBody(writable, body);
-      if (item.padding > 0) {
-        await writeChunk(writable, new Uint8Array(item.padding));
-      }
-    }
-    await writeChunk(writable, new Uint8Array(TRAILER_BLOCKS * BLOCK));
-    await closePipe(writable);
-    options.onBytes?.(plan.contentLength);
-  } catch (error) {
-    // A client disconnect lands here too; aborting cancels the origin fetch.
-    await writable.abort(error).catch(() => undefined);
-  }
+  const segments = tarSegments(plan);
+  return {
+    body: streamSlices(wholeSlices(segments), totalLength(segments), open, options),
+    contentLength: plan.contentLength,
+    entryCount: files.length,
+  };
 }
 
 // --- header construction -----------------------------------------------------
