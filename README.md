@@ -25,6 +25,7 @@ sweat.
 - ✅ **Play media from inside the archive** — stream and scrub a video without extracting it; sibling `.srt` subtitles are found and converted to WebVTT automatically
 - ✅ **Combined download** — select multiple files and stream them back as one **ZIP or TAR**, at any size (zero re-compression, native byte pumps)
 - ✅ **Bundles (the reverse direction)** — hand it many remote file URLs and get one permanent `/bundle/{code}.tar` or `.zip`; nothing is stored, everything streams
+- ✅ **R2 as a source** — address bucket objects as `r2://{key}`, for archives *and* bundle files: no external subrequests (so ~1,000 files per bundle on Free instead of ~48) and no egress cost
 - ✅ **Seekable generated archives** — bundles answer `Range` requests, so a multi-gigabyte download **resumes** after a dropped connection, works with download managers, and can be pulled in parallel chunks
 - ✅ **Permanent short links** — turn a giant signed archive URL into a tidy, shareable `/zfile/{code}` (browse) + `/sfile/{code}/{file}` (download); the code is stable across re-signs (KV-backed, auto-loads in the UI)
 - ✅ Zero runtime dependencies · ~30 KiB gzipped bundle
@@ -164,6 +165,7 @@ default; invalid values degrade to the default rather than crashing.
 | `ALLOW_ANY_ARCHIVE_HOST`      | `false`    | Multi-archive: accept **any public host** (private IPs still blocked) |
 | `MAX_ZIP_ENTRIES`             | `64`       | Max files in one combined-ZIP download                                |
 | `SHORTLINK_TTL_SECONDS`       | `0` (perm) | Short-link lifetime; `0` = permanent (needs the `LINKS_KV` binding)   |
+| `R2_PREFIX`                   | — (all)    | Restrict `r2://` sources to keys under this prefix                    |
 | `CACHE_TTL_SECONDS`           | `3600`     | Central-directory cache TTL (`0` disables)                            |
 | `ORIGIN_TIMEOUT_MS`           | `15000`    | Origin header/TTFB timeout (body streaming is unbounded)              |
 | `ORIGIN_RETRIES`              | `2`        | Automatic retries on transient origin failures                        |
@@ -172,7 +174,7 @@ default; invalid values degrade to the default rather than crashing.
 | `MAX_UNCOMPRESSED_BYTES`      | `0` (off)  | Reject entries larger than this                                       |
 | `MAX_COMPRESSION_RATIO`       | `0` (off)  | Reject entries above this ratio (ZIP-bomb guard)                      |
 
-Optional bindings (auto-detected): `LINKS_KV` (short links — `/__/shorten`,
+Optional bindings (auto-detected): `R2_BUCKET` (`r2://` sources), `LINKS_KV` (short links — `/__/shorten`,
 `/zfile/{code}`, `/sfile/{code}`), `METADATA_KV` (cross-colo directory cache),
 `METRICS` (Analytics Engine).
 

@@ -12,7 +12,8 @@ import { isNotModified, isRangeApplicable } from '../http/conditional.js';
 import { contentDisposition } from '../http/content-disposition.js';
 import { fetchWithResilience } from '../http/fetch-with-resilience.js';
 import { formatContentRange, parseRange } from '../http/range.js';
-import { validateArchiveUrl } from '../security/ssrf.js';
+import { isR2Source, r2Key } from '../r2/r2-reader.js';
+import { assertSourceAllowed, requireBucket } from '../security/source.js';
 import {
   crcRemaining,
   getBundle,
@@ -103,7 +104,7 @@ export async function createBundleHandler(ctx: RequestContext): Promise<Response
     const url = item.url.trim();
     if (url === '' || seen.has(url)) continue;
     seen.add(url);
-    validateArchiveUrl(url, ctx.config.allowedHosts);
+    assertSourceAllowed(ctx, url);
     files.push(await probeFile(ctx, url, item.name));
   }
   if (files.length === 0) throw new BadRequestError('no valid files given');
@@ -134,6 +135,21 @@ export async function createBundleHandler(ctx: RequestContext): Promise<Response
  * means the body is being transcoded, and the file is measured in full instead.
  */
 async function probeFile(ctx: RequestContext, url: string, given?: string): Promise<BundleFile> {
+  // R2 reports the true size and never transcodes, so one `head` settles it —
+  // none of the ambiguity that forces the range probe for HTTP origins.
+  if (isR2Source(url)) {
+    const key = r2Key(url);
+    const object = await requireBucket(ctx).head(key);
+    if (!object) throw new NotFoundError('object not found in the bound R2 bucket', { key });
+    return {
+      url,
+      name: trimmedName(given) ?? safeName(key.slice(key.lastIndexOf('/') + 1)),
+      size: object.size,
+      ranged: true,
+      lastModified: object.uploaded.getTime(),
+    };
+  }
+
   const options = {
     timeoutMs: ctx.config.originTimeoutMs,
     retries: ctx.config.originRetries,
@@ -269,21 +285,8 @@ export async function prepareBundleHandler(ctx: RequestContext, code: string): P
       continue;
     }
 
-    const response = await fetchWithResilience(
-      ctx.deps.fetch,
-      file.url,
-      {
-        method: HttpMethod.GET,
-        headers: { ...IDENTITY, [Header.RANGE]: `bytes=${from}-${from + take - 1}` },
-      },
-      {
-        timeoutMs: ctx.config.originTimeoutMs,
-        retries: ctx.config.originRetries,
-        signal: ctx.signal,
-      },
-    );
-    const stream = response.body as ReadableStream<Uint8Array> | null;
-    if (!stream) throw new UpstreamError('origin returned no body', { url: file.url });
+    // Same opener the download path uses, so R2 and HTTP behave identically.
+    const stream = await openBundleSlice(ctx, file, from, take, ctx.signal);
 
     let state = file.crcState ?? CRC32_INIT;
     let read = 0;
@@ -437,6 +440,17 @@ async function openBundleSlice(
   signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
   if (!file) throw new NotFoundError('bundle entry missing');
+
+  if (isR2Source(file.url)) {
+    // A bucket read is not an external subrequest, which is what lets an R2
+    // bundle hold ~1,000 files on the Free plan instead of ~48.
+    const key = r2Key(file.url);
+    const object = await requireBucket(ctx).get(key, { range: { offset: start, length } });
+    if (!object || !('body' in object)) {
+      throw new NotFoundError('object disappeared from the bound R2 bucket', { key });
+    }
+    return object.body;
+  }
 
   const headers: Record<string, string> = { ...IDENTITY };
   if (file.ranged && file.size > 0) {

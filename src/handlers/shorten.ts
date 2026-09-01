@@ -1,5 +1,5 @@
 import { BadRequestError, ForbiddenError, ServiceUnavailableError } from '../errors/http-error.js';
-import { validateArchiveUrl } from '../security/ssrf.js';
+import { assertSourceAllowed } from '../security/source.js';
 import { putShortLink } from '../services/short-link.js';
 import type { RequestContext } from '../types/context.js';
 import { jsonResponse } from './respond.js';
@@ -30,7 +30,7 @@ export async function shortenHandler(ctx: RequestContext): Promise<Response> {
 
   const url = await readUrl(ctx);
   // Reject anything we would not be willing to fetch as an archive.
-  validateArchiveUrl(url, ctx.config.allowedHosts);
+  assertSourceAllowed(ctx, url);
 
   const code = await putShortLink(kv, url, ctx.config.shortLinkTtlSeconds);
   ctx.log.info('short link created', { code, ttl: ctx.config.shortLinkTtlSeconds });

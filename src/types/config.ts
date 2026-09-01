@@ -49,4 +49,6 @@ export interface Config {
   readonly maxZipEntries: number;
   /** Lifetime of a short link (code → archive URL) in seconds. */
   readonly shortLinkTtlSeconds: number;
+  /** `r2://` sources are restricted to keys under this prefix (empty = all). */
+  readonly r2Prefix: string;
 }

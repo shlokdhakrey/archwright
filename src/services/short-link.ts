@@ -26,6 +26,9 @@ const CODE_LENGTH = 8;
  * should — callers validate first).
  */
 export function canonicalArchiveUrl(raw: string): string {
+  // `r2://` sources carry no query string, so they are already canonical — and
+  // `new URL` would mangle the key by splitting it into host and path.
+  if (raw.startsWith('r2://')) return raw;
   try {
     const url = new URL(raw);
     return url.origin.toLowerCase() + url.pathname;

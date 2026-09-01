@@ -70,6 +70,18 @@
     { "binding": "LINKS_KV", "id": "1a915837561d49c4bb4d4883827c016d" }
   ],
 
+  // Bind a bucket to address its objects as `r2://{key}` — as an archive to read
+  // or as files to bundle. Worth doing: bucket reads are not external
+  // subrequests, so on the Free plan an R2 bundle can hold ~1,000 files instead
+  // of ~48, and R2 egress inside Cloudflare is free.
+  //
+  // SECURITY: binding a bucket makes its objects reachable by anyone who can
+  // reach this Worker. Set R2_PREFIX to expose only a subtree, and prefer
+  // ALLOWED_ARCHIVE_HOSTS or ARCHIVE_SIGNING_SECRET over open mode.
+  // "r2_buckets": [
+  //   { "binding": "R2_BUCKET", "bucket_name": "<your-bucket>" }
+  // ],
+
   // --- Optional bindings (uncomment to enable; all are optional) ---------------
   //
   // A KV namespace lets parsed archive metadata survive across colos. The Worker

@@ -16,6 +16,8 @@ export interface Deps {
   readonly kv?: KVNamespace;
   /** KV namespace backing short links; absent when the feature is disabled. */
   readonly links?: KVNamespace;
+  /** Bucket backing `r2://` sources; absent when no bucket is bound. */
+  readonly bucket?: R2Bucket;
   readonly metrics?: AnalyticsEngineDataset;
 }
 

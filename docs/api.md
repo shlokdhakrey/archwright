@@ -94,6 +94,40 @@ entry is unsupported). Ranges are not supported on this endpoint.
 
 ---
 
+## `r2://{key}` — reading from a bound bucket
+
+Anywhere a source URL is accepted — the archive behind `/__/shorten`, and each
+file in a bundle — an `r2://{key}` source addresses an object in the bucket bound
+as `R2_BUCKET` instead of fetching over HTTP.
+
+```
+POST /__/bundle
+{ "files": [{ "url": "r2://media/ep01.mkv" }, { "url": "r2://media/ep02.mkv" }] }
+
+POST /__/shorten
+{ "url": "r2://archives/season-1.zip" }
+```
+
+Why it matters beyond convenience: on the Free plan a Worker gets **50 external
+subrequests** per invocation but **1,000** to Cloudflare's own services. Bucket
+reads fall in the second bucket, so an R2 bundle holds roughly **1,000 files
+instead of ~48** — and R2 egress inside Cloudflare is free. R2 also serves ranges
+natively and never transcodes, so a single `head` settles an object's size, with
+none of the ambiguity that forces the empirical probe for HTTP origins.
+
+Keys are percent-decoded, so `r2://media/My%20Movie.mkv` addresses
+`media/My Movie.mkv`.
+
+**Status codes**: `503` when no bucket is bound, `403` when the key falls outside
+`R2_PREFIX`, `404` when the object does not exist.
+
+> **Binding a bucket exposes it.** Any object under `R2_PREFIX` becomes reachable
+> by anyone who can reach the Worker. Set `R2_PREFIX` to a subtree, and prefer
+> `ALLOWED_ARCHIVE_HOSTS` or `ARCHIVE_SIGNING_SECRET` over open mode for a bucket
+> holding anything private.
+
+---
+
 ## `GET` / `HEAD` `/__/play/{entryPath}` — play media from inside the archive
 
 Returns a player page for an audio or video entry. Nothing is extracted,

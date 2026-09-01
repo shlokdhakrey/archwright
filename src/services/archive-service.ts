@@ -1,7 +1,9 @@
 import { loadArchive, type LoadArchiveResult } from '../cache/central-directory-cache.js';
 import { HttpRangeReader } from '../http/http-range-reader.js';
-import { validateArchiveUrl } from '../security/ssrf.js';
+import { isR2Source, r2Key, R2RangeReader } from '../r2/r2-reader.js';
+import { assertSourceAllowed, requireBucket } from '../security/source.js';
 import type { RequestContext } from '../types/context.js';
+import type { RangeReader } from '../types/io.js';
 
 /**
  * Open a remote archive for reading: validate the URL (SSRF), probe it for size
@@ -12,17 +14,21 @@ import type { RequestContext } from '../types/context.js';
  * URLs (whose query strings are signature-sensitive) are never reserialised.
  */
 export async function openArchive(ctx: RequestContext, archiveUrl: string): Promise<LoadArchiveResult> {
-  validateArchiveUrl(archiveUrl, ctx.config.allowedHosts);
+  assertSourceAllowed(ctx, archiveUrl);
 
   const stopOpen = ctx.metrics.startTimer('reader_open_ms');
-  const reader = await HttpRangeReader.open({
-    url: archiveUrl,
-    fetcher: ctx.deps.fetch,
-    timeoutMs: ctx.config.originTimeoutMs,
-    retries: ctx.config.originRetries,
-    maxWholeBuffer: ctx.config.maxCentralDirectoryBytes,
-    signal: ctx.signal,
-  });
+  // An `r2://` archive is read through the bucket binding: ranges are native,
+  // egress is free, and it does not consume an external subrequest.
+  const reader: RangeReader = isR2Source(archiveUrl)
+    ? await R2RangeReader.open(requireBucket(ctx), r2Key(archiveUrl))
+    : await HttpRangeReader.open({
+        url: archiveUrl,
+        fetcher: ctx.deps.fetch,
+        timeoutMs: ctx.config.originTimeoutMs,
+        retries: ctx.config.originRetries,
+        maxWholeBuffer: ctx.config.maxCentralDirectoryBytes,
+        signal: ctx.signal,
+      });
   stopOpen();
   ctx.metrics.gauge('archive_size_bytes', reader.size);
 

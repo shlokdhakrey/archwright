@@ -33,7 +33,11 @@ export interface Env {
   readonly MAX_ZIP_ENTRIES?: string;
   /** How long a short link (code → archive URL) lives, in seconds. */
   readonly SHORTLINK_TTL_SECONDS?: string;
+  /** Restrict `r2://` sources to keys under this prefix. Empty = the whole bucket. */
+  readonly R2_PREFIX?: string;
 
+  /** Optional: bucket backing `r2://` sources, for archives and bundle files. */
+  readonly R2_BUCKET?: R2Bucket;
   /** Optional: KV namespace backing short links (`/__/shorten`, `/s/{code}`). */
   readonly LINKS_KV?: KVNamespace;
   /** Optional: cross-colo metadata cache. */

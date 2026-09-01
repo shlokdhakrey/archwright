@@ -58,6 +58,7 @@ export function createApp(options: AppOptions = {}): App {
           cache,
           ...(env.METADATA_KV ? { kv: env.METADATA_KV } : {}),
           ...(env.LINKS_KV ? { links: env.LINKS_KV } : {}),
+          ...(env.R2_BUCKET ? { bucket: env.R2_BUCKET } : {}),
           ...(env.METRICS ? { metrics: env.METRICS } : {}),
         };
         const ctx: RequestContext = {

@@ -64,6 +64,7 @@ export function parseConfig(env: Env): Config {
     serveUi: parseBool(env.SERVE_UI, true),
     maxZipEntries: clampInt(env.MAX_ZIP_ENTRIES, NUMERIC_BOUNDS.maxZipEntries),
     shortLinkTtlSeconds: clampInt(env.SHORTLINK_TTL_SECONDS, NUMERIC_BOUNDS.shortLinkTtlSeconds),
+    r2Prefix: (env.R2_PREFIX ?? '').trim().replace(/^\/+/, ''),
   };
 }
 
