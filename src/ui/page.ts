@@ -69,15 +69,33 @@ export function renderAppPage(config: UiConfig): string {
   .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent);
     border-radius: 50%; animation: spin 0.7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tab { background: transparent; border: 1px solid transparent; color: var(--muted); padding: 8px 14px; }
+  .tab.active { background: var(--panel); border-color: var(--border); color: var(--text); font-weight: 600; }
+  textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    resize: vertical; }
+  a.btn { display: inline-block; text-decoration: none; font: inherit; cursor: pointer;
+    border-radius: 8px; border: 1px solid var(--border); padding: 10px 14px; color: var(--text); }
+  a.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+  a.btn.disabled { opacity: 0.5; pointer-events: none; }
+  .progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+  .progress > div { height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>${SERVICE_NAME}</h1>
-    <p>Stream individual files out of a remote ZIP — no extraction, no full download.</p>
+    <p>Stream files out of a remote ZIP — or bundle many remote files into one archive.</p>
   </header>
 
+  <div class="tabs">
+    <button class="tab active" id="tab-open">Open a ZIP</button>
+    <button class="tab" id="tab-bundle">Bundle files</button>
+  </div>
+
+  <div id="view-open">
   <div class="panel">
     <div class="loader" id="loader">
       <input type="url" id="url" placeholder="https://example.com/archive.zip" autocomplete="off" spellcheck="false" />
@@ -104,12 +122,42 @@ export function renderAppPage(config: UiConfig): string {
     </table>
     <p class="hint" id="dlnote">Tip: download in your browser for best results — some download managers (IDM, 1DM…) can't open compressed files served straight from a ZIP.</p>
   </div>
+  </div>
+
+  <div id="view-bundle" class="hidden">
+    <div class="panel">
+      <textarea id="urls" rows="6" placeholder="https://example.com/one.mkv&#10;https://example.com/two.mkv&#10;one URL per line…" spellcheck="false"></textarea>
+      <div class="loader" style="margin-top:10px">
+        <input type="url" id="bname" placeholder="archive name (optional)" autocomplete="off" />
+        <button class="primary" id="make">Create bundle</button>
+      </div>
+      <div class="hint">Direct links to any public files. They are streamed into one archive on demand — nothing is ever stored.</div>
+    </div>
+
+    <div class="msg hidden" id="bmsg"></div>
+
+    <div id="bres" class="hidden">
+      <p class="hint" id="blink"></p>
+      <table>
+        <thead><tr><th>Name</th><th style="width:120px">Size</th></tr></thead>
+        <tbody id="brows"></tbody>
+      </table>
+      <div class="loader" style="margin-top:14px">
+        <a class="btn primary" id="btar" download>Download .tar</a>
+        <button id="bzip">Prepare .zip</button>
+      </div>
+      <div class="progress hidden" id="bprog"><div id="bbar"></div></div>
+      <p class="hint" id="bnote"></p>
+    </div>
+  </div>
 </div>
 
 <div class="bar hidden" id="bar">
   <div class="bar-inner">
     <span class="info" id="selinfo">0 selected</span>
-    <button class="primary" id="each">Download each</button>
+    <button id="each">Download each</button>
+    <button class="primary" id="zip">Download as ZIP</button>
+    <button id="tar">Download as TAR</button>
   </div>
 </div>
 
@@ -255,6 +303,140 @@ export function renderAppPage(config: UiConfig): string {
 
   $('load').addEventListener('click', load);
   $('url').addEventListener('keydown', function (e) { if (e.key === 'Enter') load(); });
+
+  // Combined downloads. Both stream at any size: ZIP copies entries verbatim
+  // (reusing their CRC-32s), TAR passes STORED entries straight through.
+  function combinedUrl(kind, names, outName) {
+    var q = names.map(function (n) { return 'path=' + encodeURIComponent(n); });
+    q.push('name=' + encodeURIComponent(outName));
+    return listBase() + '/' + ZS.prefix + '/' + kind + '?' + q.join('&');
+  }
+
+  $('zip').addEventListener('click', function () {
+    var names = selectedNames();
+    if (names.length) window.location.href = combinedUrl('zip', names, 'selection.zip');
+  });
+
+  $('tar').addEventListener('click', function () {
+    var names = selectedNames();
+    if (names.length) window.location.href = combinedUrl('tar', names, 'selection.tar');
+  });
+
+  // ---- Bundle mode: many remote files in, one archive out ----
+  var bundle = null;
+
+  function showTab(which) {
+    var isOpen = which === 'open';
+    $('view-open').className = isOpen ? '' : 'hidden';
+    $('view-bundle').className = isOpen ? 'hidden' : '';
+    $('tab-open').className = 'tab' + (isOpen ? ' active' : '');
+    $('tab-bundle').className = 'tab' + (isOpen ? '' : ' active');
+    if (!isOpen) $('bar').className = 'bar hidden'; else updateBar();
+  }
+  $('tab-open').addEventListener('click', function () { showTab('open'); });
+  $('tab-bundle').addEventListener('click', function () { showTab('bundle'); });
+
+  function bundleMsg(text, isError) {
+    var m = $('bmsg');
+    if (!text) { m.className = 'msg hidden'; return; }
+    m.textContent = text; m.className = 'msg' + (isError ? ' error' : '');
+  }
+
+  function zipState() {
+    var btn = $('bzip');
+    if (bundle.zipReady) {
+      btn.textContent = 'Download .zip';
+      $('bnote').textContent = 'Both formats stream at any size — nothing is stored on the server.';
+    } else {
+      btn.textContent = 'Prepare .zip';
+      $('bnote').textContent = '.tar is ready now and has no size limit. .zip additionally needs a one-time '
+        + 'checksum pass over ' + human(bundle.crcRemaining) + ' (ZIP stores a CRC per file; TAR does not).';
+    }
+  }
+
+  function renderBundle(data) {
+    bundle = data;
+    var rows = $('brows'); rows.innerHTML = '';
+    data.files.forEach(function (f) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td class="name"></td><td class="size">' + human(f.size) + '</td>';
+      tr.querySelector('.name').textContent = f.name;
+      rows.appendChild(tr);
+    });
+    $('blink').textContent = 'Permanent links — .tar: ' + location.origin + data.tar
+      + '  ·  .zip: ' + location.origin + data.zip;
+    $('btar').href = data.tar;
+    $('bres').className = '';
+    zipState();
+  }
+
+  $('make').addEventListener('click', function () {
+    var urls = $('urls').value.split('
+').map(function (line) { return line.trim(); })
+      .filter(function (line) { return line.length > 0; });
+    if (!urls.length) { bundleMsg('Paste at least one file URL.', true); return; }
+    bundleMsg('');
+    $('make').disabled = true; $('make').textContent = 'Creating…';
+    fetch('/' + ZS.prefix + '/bundle', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        files: urls.map(function (u) { return { url: u }; }),
+        name: $('bname').value
+      })
+    }).then(function (r) {
+      return r.json().then(function (b) {
+        if (!r.ok) throw new Error((b && b.error && b.error.message) || ('HTTP ' + r.status));
+        return b;
+      });
+    }).then(renderBundle)
+      .catch(function (e) { bundleMsg('Could not create bundle: ' + e.message, true); })
+      .finally(function () { $('make').disabled = false; $('make').textContent = 'Create bundle'; });
+  });
+
+  $('bzip').addEventListener('click', function () {
+    if (!bundle) return;
+    if (bundle.zipReady) { window.location.href = bundle.zip; return; }
+    prepareZip();
+  });
+
+  // Checksum the bundle in resumable passes, each bounded so it stays inside the
+  // Worker CPU budget, until ZIP can be streamed natively.
+  function prepareZip() {
+    var btn = $('bzip');
+    btn.disabled = true;
+    $('bprog').className = 'progress';
+    var total = bundle.totalBytes || 1;
+    function step() {
+      fetch('/' + ZS.prefix + '/bundle/' + bundle.code + '/prepare', { method: 'POST' })
+        .then(function (r) {
+          return r.json().then(function (b) {
+            if (!r.ok) throw new Error((b && b.error && b.error.message) || ('HTTP ' + r.status));
+            return b;
+          });
+        })
+        .then(function (d) {
+          bundle = d;
+          var pct = Math.round(((total - d.crcRemaining) / total) * 100);
+          $('bbar').style.width = pct + '%';
+          $('bnote').textContent = 'Preparing .zip — ' + pct + '% (' + human(d.crcRemaining) + ' to go)';
+          if (d.complete) {
+            btn.disabled = false;
+            $('bprog').className = 'progress hidden';
+            zipState();
+            window.location.href = bundle.zip;
+          } else {
+            step();
+          }
+        })
+        .catch(function (e) {
+          btn.disabled = false;
+          $('bprog').className = 'progress hidden';
+          bundleMsg('Prepare failed: ' + e.message, true);
+        });
+    }
+    step();
+  }
 
   $('each').addEventListener('click', function () {
     var names = selectedNames();

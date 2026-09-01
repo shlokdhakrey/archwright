@@ -1,8 +1,7 @@
 import { Signature } from '../constants/zip.js';
-import { meterStream } from '../streaming/transforms.js';
+import { closePipe, createBytePipe, pumpBody, writeChunk } from '../streaming/native-stream.js';
 import type { ZipEntry } from '../types/zip.js';
 import { concatBytes } from '../utils/bytes.js';
-import { readableFromAsyncIterable } from '../utils/stream.js';
 import type { ZipArchive } from './archive.js';
 import { epochMsToDosDateTime } from './dos-time.js';
 
@@ -100,49 +99,56 @@ export function planCombinedZip(entries: readonly ZipEntry[]): CombinedZipPlan {
   return { planned, centralDirectory, endRecord, contentLength, zip64 };
 }
 
-/** Build the streaming combined ZIP for `entries` selected from `archive`. */
+/**
+ * Build the streaming combined ZIP for `entries` selected from `archive`.
+ *
+ * Entry payloads are moved with `pipeTo` into a native pipe, so their bytes
+ * never pass through the JS isolate — a multi-gigabyte selection costs the
+ * Worker almost no CPU (see `streaming/native-stream.ts`). Only the small
+ * headers are written from JS. Nothing is checksummed here: every entry is
+ * copied verbatim, so the CRC-32s come straight from the source central
+ * directory.
+ */
 export function buildCombinedZip(
   archive: ZipArchive,
   entries: readonly ZipEntry[],
   options: BuildCombinedZipOptions = {},
 ): CombinedZip {
   const plan = planCombinedZip(entries);
-  const raw = readableFromAsyncIterable(streamChunks(archive, plan, options.signal));
-  const body = options.onBytes ? raw.pipeThrough(meterStream(options.onBytes)) : raw;
-  return { body, contentLength: plan.contentLength, zip64: plan.zip64, entryCount: entries.length };
+  const pipe = createBytePipe(plan.contentLength);
+  // Detached writer task: the response body keeps the Worker alive while the
+  // client drains it, so this runs to completion as the bytes are consumed.
+  void writeCombinedZip(archive, plan, pipe.writable, options);
+  return {
+    body: pipe.readable,
+    contentLength: plan.contentLength,
+    zip64: plan.zip64,
+    entryCount: entries.length,
+  };
 }
 
-async function* streamChunks(
+async function writeCombinedZip(
   archive: ZipArchive,
   plan: CombinedZipPlan,
-  signal: AbortSignal | undefined,
-): AsyncGenerator<Uint8Array> {
-  for (const item of plan.planned) {
-    yield item.localHeader;
-    const location = await archive.resolveData(item.entry, signal);
-    const { body } = await archive.stream(location.offset, location.length, signal);
-    const reader = body.getReader();
-    let completed = false;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) {
-          completed = true;
-          break;
-        }
-        yield value;
-      }
-    } finally {
-      if (completed) {
-        reader.releaseLock();
-      } else {
-        // Early return (client disconnect): cancel to abort the source fetch.
-        await reader.cancel().catch(() => undefined);
-      }
+  writable: WritableStream<Uint8Array>,
+  options: BuildCombinedZipOptions,
+): Promise<void> {
+  const { signal } = options;
+  try {
+    for (const item of plan.planned) {
+      await writeChunk(writable, item.localHeader);
+      const location = await archive.resolveData(item.entry, signal);
+      const { body } = await archive.stream(location.offset, location.length, signal);
+      await pumpBody(writable, body);
     }
+    await writeChunk(writable, plan.centralDirectory);
+    await writeChunk(writable, plan.endRecord);
+    await closePipe(writable);
+    options.onBytes?.(plan.contentLength);
+  } catch (error) {
+    // A client disconnect lands here too; aborting cancels the origin fetch.
+    await writable.abort(error).catch(() => undefined);
   }
-  yield plan.centralDirectory;
-  yield plan.endRecord;
 }
 
 // --- header builders ---------------------------------------------------------

@@ -41,7 +41,12 @@ export interface EntryStreamPlan extends Selection {
 }
 
 export interface BuildStreamOptions {
-  /** Called with the total byte count once the body streams to completion. */
+  /**
+   * Reports the entry's byte count. For a transformed body (DEFLATE) this fires
+   * when the stream completes; for a zero-copy passthrough (STORED) it fires up
+   * front with the planned length, because metering it would mean routing every
+   * byte through the isolate.
+   */
   readonly onBytes?: (bytes: number) => void;
   /** Propagated to the origin read; a client disconnect cancels it. */
   readonly signal?: AbortSignal;
@@ -69,9 +74,25 @@ export async function buildEntryStream(
 ): Promise<EntryStreamPlan> {
   const selection = selectionFor(entry, range);
   const satisfiable = range.kind === 'satisfiable' ? range.range : undefined;
-  const rawBody = await buildBody(archive, entry, location, satisfiable, options.signal);
-  const body = options.onBytes ? rawBody.pipeThrough(meterStream(options.onBytes)) : rawBody;
+  const built = await buildBody(archive, entry, location, satisfiable, options.signal);
+
+  // A STORED read is the origin stream verbatim. Wrapping it in a metering
+  // TransformStream would drag every byte through the JS isolate (~17 ms of CPU
+  // per MB) — the difference between an unlimited download and one that dies at
+  // ~115 MB. Keep it zero-copy and report the planned length instead.
+  if (built.passthrough) {
+    options.onBytes?.(selection.contentLength);
+    return { ...selection, body: built.body };
+  }
+
+  const body = options.onBytes ? built.body.pipeThrough(meterStream(options.onBytes)) : built.body;
   return { ...selection, body };
+}
+
+interface BuiltBody {
+  readonly body: ReadableStream<Uint8Array>;
+  /** True when the body is the origin stream untouched (no JS transform). */
+  readonly passthrough: boolean;
 }
 
 async function buildBody(
@@ -80,15 +101,15 @@ async function buildBody(
   location: EntryDataLocation,
   range: InclusiveRange | undefined,
   signal: AbortSignal | undefined,
-): Promise<ReadableStream<Uint8Array>> {
+): Promise<BuiltBody> {
   if (entry.method === ZipMethod.STORED) {
     if (range) {
       const length = range.end - range.start + 1;
       const { body } = await archive.stream(location.offset + range.start, length, signal);
-      return body;
+      return { body, passthrough: true };
     }
     const { body } = await archive.stream(location.offset, location.length, signal);
-    return body;
+    return { body, passthrough: true };
   }
 
   if (entry.method === ZipMethod.DEFLATE) {
@@ -96,10 +117,10 @@ async function buildBody(
     const inflated = inflateRaw(compressed);
     if (range) {
       const length = range.end - range.start + 1;
-      return inflated.pipeThrough(sliceStream(range.start, length));
+      return { body: inflated.pipeThrough(sliceStream(range.start, length)), passthrough: false };
     }
     // Cap output at the declared size so the body can never exceed Content-Length.
-    return inflated.pipeThrough(sliceStream(0, entry.uncompressedSize));
+    return { body: inflated.pipeThrough(sliceStream(0, entry.uncompressedSize)), passthrough: false };
   }
 
   throw new UnsupportedEntryError(`compression method "${methodName(entry.method)}" is not supported`, {

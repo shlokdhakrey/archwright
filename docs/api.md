@@ -94,6 +94,75 @@ entry is unsupported). Ranges are not supported on this endpoint.
 
 ---
 
+## `GET` / `HEAD` `/__/tar` — combined download as TAR
+
+Identical to `/__/zip` in shape (`?path=` repeated, optional `?name=`), but emits
+a POSIX **ustar** archive: `application/x-tar`, exact `Content-Length`, long paths
+carried in PAX extended headers, sizes past 8 GiB in base-256.
+
+Pick the format by what the *source* stores, because the two are exact opposites:
+
+| Source entries | `/__/zip`                                  | `/__/tar`                              |
+| -------------- | ------------------------------------------ | -------------------------------------- |
+| DEFLATE        | verbatim copy, CRC reused → **any size**    | must inflate → CPU-bound (~100 MB Free) |
+| STORED         | verbatim copy → **any size**                | native passthrough → **any size**       |
+
+The response carries `x-tar-mode: native` when no entry needed inflating.
+
+---
+
+## `POST` `/__/bundle` — many files in, one archive out
+
+The reverse direction. Give it a list of remote file URLs; it validates each
+(SSRF + allowlist), probes its size, and stores a manifest under a permanent code
+derived from the canonical URL list.
+
+```
+POST /__/bundle
+Content-Type: application/json
+
+{ "files": [{ "url": "https://…/one.mkv" }, { "url": "https://…/two.mkv", "name": "custom.mkv" }],
+  "name": "my-picks" }
+```
+
+`files` also accepts bare URL strings. Response:
+
+```json
+{ "code": "U_IbbVpW", "tar": "/bundle/U_IbbVpW.tar", "zip": "/bundle/U_IbbVpW.zip",
+  "name": "my-picks", "files": [{ "name": "one.mkv", "size": 123, "crc": false }],
+  "totalBytes": 123, "tarBytes": 2048, "zipBytes": 1200,
+  "zipReady": false, "crcRemaining": 123 }
+```
+
+Duplicate names are de-duplicated (`file (1).mkv`). Nothing is downloaded or
+stored — only sizes and names are recorded.
+
+**Status codes**: `200`, `400` (no/invalid files), `403` (host not allowed, or
+neither open mode nor an allowlist configured), `413` (too many files, or a
+transcoding origin whose file is too large to measure), `503` (no `LINKS_KV`).
+
+### `GET` / `HEAD` `/bundle/{code}.tar` — ready immediately, any size
+
+TAR stores no per-file checksum, so payloads are moved natively and the Worker's
+CPU cost is flat regardless of size. This works the moment the bundle exists.
+
+### `POST` `/__/bundle/{code}/prepare` then `GET /bundle/{code}.zip`
+
+ZIP stores a CRC-32 per entry — the one step that must touch every byte. Call
+prepare repeatedly; each pass checksums a bounded slice (resuming where the last
+stopped) and caches the result on the manifest:
+
+```json
+{ "prepared": 1048576, "remaining": 5242880, "complete": false, "zipReady": false }
+```
+
+Once `complete` is true the ZIP streams natively at any size. Requesting the ZIP
+early returns `400` pointing at the TAR. Files from origins that transcode their
+responses are measured (and checksummed) at create time, so they arrive
+ZIP-ready.
+
+---
+
 ## `POST` `/__/shorten` — permanent short links
 
 Turn a long archive URL (a signed R2/S3 URL can be 600+ characters) into a compact

@@ -1,11 +1,15 @@
 import {
+  bundleDownloadHandler,
+  createBundleHandler,
   downloadHandler,
   healthHandler,
   listHandler,
   metaHandler,
   optionsHandler,
+  prepareBundleHandler,
   rootHandler,
   shortenHandler,
+  tarHandler,
   uiHandler,
   versionHandler,
   zipHandler,
@@ -32,10 +36,18 @@ export const router: Handler = async (ctx: RequestContext): Promise<Response> =>
       return optionsHandler(ctx);
     case 'shorten':
       return shortenHandler(ctx);
+    case 'bundle-create':
+      return createBundleHandler(ctx);
+    case 'bundle-prepare':
+      return prepareBundleHandler(ctx, route.code);
+    case 'bundle-download':
+      return bundleDownloadHandler(ctx, route.code, route.format);
     case 'list':
       return listHandler(ctx, route.archiveUrl);
     case 'zip':
       return zipHandler(ctx, route.archiveUrl);
+    case 'tar':
+      return tarHandler(ctx, route.archiveUrl);
     case 'meta':
       return metaHandler(ctx, route.archiveUrl, route.entryPath);
     case 'download':

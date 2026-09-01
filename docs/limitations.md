@@ -47,20 +47,42 @@ which reintroduces the per-byte CPU cost above. The download-manager workarounds
 in [Troubleshooting](troubleshooting.md). STORED entries have no such caveat — they
 are a plain identity passthrough every client handles.
 
-Two related paths remain CPU-bound on Free, because they genuinely must touch the
-bytes:
+### What actually costs CPU: touching bytes in JS
 
-- **DEFLATE ranges** must be inflated server-side (you cannot seek an encoded
-  body), so a single request inflates roughly ~100 MB before hitting the limit.
-  Prefer STORED archives for heavy seeking. See the note above.
-- **Combined multi-file ZIP** (`/__/zip`) frames entries through a streaming ZIP
-  writer, which passes bytes through the isolate; that path handles a few hundred
-  MB on Free. For huge combined downloads use the Paid plan
-  (`limits.cpu_ms`, up to 5 min CPU).
+The rule for this codebase is simple — **a byte that enters the JS isolate costs
+CPU; a byte moved by the runtime does not.** Measured on Workers, moving the same
+50 MB:
 
-**STORED entries cost ≈ 0 CPU** at any size on Free for both full downloads and
-ranges (a plain origin passthrough). The Paid plan removes the range/combined
-ceilings for DEFLATE.
+| how the bytes move                                | CPU for 50 MB |
+| ------------------------------------------------- | ------------- |
+| `return fetch().body` (zero-copy)                  | **1 ms**      |
+| `FixedLengthStream` / `IdentityTransformStream`    | **1–2 ms**    |
+| multi-source concatenation via `pipeTo` (archives) | **~4 ms**     |
+| web-standard `TransformStream` (JS queue)          | **886 ms**    |
+| read loop + CRC-32                                 | **865 ms**    |
+
+`FixedLengthStream` and `IdentityTransformStream` are native, so **assembling an
+archive from many sources is essentially free** — headers are written from JS,
+payloads are moved with `pipeTo`. That is why combined ZIP/TAR downloads and
+bundles have no size ceiling. Using the web-standard `TransformStream` here
+instead would cap them at ~115 MB on Free; see `streaming/native-stream.ts`.
+
+Only two things must still touch every byte, and both are inherent:
+
+- **Inflating DEFLATE** — required for DEFLATE ranges (you cannot seek an encoded
+  body) and for putting a DEFLATE entry into a TAR, which stores plain content.
+  Roughly ~100 MB per request on Free. Prefer STORED archives for heavy seeking,
+  or `/__/zip`, which copies entries verbatim and never inflates.
+- **CRC-32 for ZIP** — ZIP stores a checksum per entry. When the checksum is
+  already known (copying entries out of a source archive) this costs nothing.
+  When bundling arbitrary URLs it must be computed once, which is what the
+  bundle *prepare* pass does — in resumable slices, cached in KV, after which the
+  ZIP streams natively at any size. **TAR has no content checksum**, so a TAR
+  bundle needs no preparation at all.
+
+**STORED entries cost ≈ 0 CPU** at any size on Free for full downloads, ranges,
+and combined ZIP/TAR. The Paid plan (`limits.cpu_ms`) lifts the two inflate/CRC
+ceilings above.
 
 ## Encrypted and multi-disk archives are unsupported
 

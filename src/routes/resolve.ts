@@ -17,8 +17,12 @@ export type Route =
   | { readonly kind: 'version' }
   | { readonly kind: 'options' }
   | { readonly kind: 'shorten' }
+  | { readonly kind: 'bundle-create' }
+  | { readonly kind: 'bundle-prepare'; readonly code: string }
+  | { readonly kind: 'bundle-download'; readonly code: string; readonly format: 'tar' | 'zip' }
   | { readonly kind: 'list'; readonly archiveUrl: string }
   | { readonly kind: 'zip'; readonly archiveUrl: string }
+  | { readonly kind: 'tar'; readonly archiveUrl: string }
   | { readonly kind: 'meta'; readonly archiveUrl: string; readonly entryPath: string }
   | { readonly kind: 'download'; readonly archiveUrl: string; readonly entryPath: string };
 
@@ -44,6 +48,9 @@ export async function resolveRoute(ctx: RequestContext): Promise<Route> {
   // short-link mapping. Every other route is GET/HEAD.
   if (method === HttpMethod.POST) {
     if (path === `/${prefix}/shorten`) return { kind: 'shorten' };
+    if (path === `/${prefix}/bundle`) return { kind: 'bundle-create' };
+    const prepare = new RegExp(`^/${prefix}/bundle/([^/]+)/prepare$`).exec(path);
+    if (prepare?.[1]) return { kind: 'bundle-prepare', code: prepare[1] };
     throw new MethodNotAllowedError([...ALLOWED_METHODS]);
   }
   if (method !== HttpMethod.GET && method !== HttpMethod.HEAD) {
@@ -54,6 +61,16 @@ export async function resolveRoute(ctx: RequestContext): Promise<Route> {
   if (path === `/${prefix}/health`) return { kind: 'health' };
   if (path === `/${prefix}/version`) return { kind: 'version' };
   if (path === '/') return { kind: 'root' };
+
+  // Bundles: one archive assembled from many remote files.
+  const bundleMatch = /^\/bundle\/([^/]+)\.(tar|zip)$/.exec(path);
+  if (bundleMatch?.[1] && bundleMatch[2]) {
+    return {
+      kind: 'bundle-download',
+      code: bundleMatch[1],
+      format: bundleMatch[2] as 'tar' | 'zip',
+    };
+  }
 
   // Short links: `/zfile/{code}` (browse) and `/sfile/{code}/{file}` (download)
   // both resolve the code to an archive URL via KV, then behave exactly like
@@ -94,6 +111,7 @@ function resolveSubPath(archiveUrl: string, subPath: string, prefix: string): Ro
   if (subPath === '/') return { kind: 'root' };
   if (subPath === `/${prefix}/list`) return { kind: 'list', archiveUrl };
   if (subPath === `/${prefix}/zip`) return { kind: 'zip', archiveUrl };
+  if (subPath === `/${prefix}/tar`) return { kind: 'tar', archiveUrl };
 
   const metaBase = `/${prefix}/meta/`;
   if (subPath.startsWith(metaBase)) {

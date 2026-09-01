@@ -22,7 +22,8 @@ entry inside a 50 GB archive is served in a 128 MB isolate without breaking a
 sweat.
 
 - ✅ **Built-in web UI** — paste a link, browse the files, download one or many
-- ✅ **Combined download** — select multiple files and stream them back as one ZIP (zero re-compression)
+- ✅ **Combined download** — select multiple files and stream them back as one **ZIP or TAR**, at any size (zero re-compression, native byte pumps)
+- ✅ **Bundles (the reverse direction)** — hand it many remote file URLs and get one permanent `/bundle/{code}.tar` or `.zip`; nothing is stored, everything streams
 - ✅ **Permanent short links** — turn a giant signed archive URL into a tidy, shareable `/zfile/{code}` (browse) + `/sfile/{code}/{file}` (download); the code is stable across re-signs (KV-backed, auto-loads in the UI)
 - ✅ Zero runtime dependencies · ~30 KiB gzipped bundle
 - ✅ Works on the **Free** and **Paid** plans — full STORED **and DEFLATE** downloads stream at any size on Free (zero-copy, ~0 CPU)
@@ -76,8 +77,12 @@ Out of the box the Worker serves a small, dependency-free page at `/`:
 2. The files inside are **listed** (name, size, type) — read straight from the
    archive's index, without downloading it.
 3. **Select** one file, several, or all.
-4. **Download** — either each file individually, or all of them repackaged into a
-   single ZIP streamed on the fly (no re-compression, exact size known up front).
+4. **Download** — each file individually, or the whole selection repackaged into a
+   single **ZIP or TAR** streamed on the fly (no re-compression, exact size known
+   up front, no size ceiling).
+
+A second tab goes the **other way**: paste a list of remote file URLs and get one
+permanent link that streams them back as a single `.tar` or `.zip`.
 
 To accept arbitrary pasted links, set `ALLOW_ANY_ARCHIVE_HOST=true` (this makes
 the Worker a public proxy for any public host — private/reserved IPs stay
@@ -122,6 +127,11 @@ node scripts/probe-archive.mjs "https://storage.googleapis.com/bucket/archive.zi
 | `GET`        | `/`                     | Browser UI (or a JSON index when `SERVE_UI=false`)          |
 | `GET`/`HEAD` | `/{entryPath}`          | Download an entry (streamed; supports `Range`)              |
 | `GET`/`HEAD` | `/__/zip?path=…&path=…` | Download the selected files as one combined ZIP             |
+| `GET`/`HEAD` | `/__/tar?path=…&path=…` | Same selection as a TAR                                     |
+| `POST`       | `/__/bundle`            | Bundle many remote file URLs into one permanent archive     |
+| `POST`       | `/__/bundle/{code}/prepare` | Compute the CRC-32s a ZIP bundle needs (resumable)      |
+| `GET`/`HEAD` | `/bundle/{code}.tar`    | Download a bundle as TAR (ready immediately, any size)      |
+| `GET`/`HEAD` | `/bundle/{code}.zip`    | Download a bundle as ZIP (after prepare)                    |
 | `GET`        | `/__/list`              | List entries (paginated, `?prefix=`, `?limit=`, `?cursor=`) |
 | `GET`        | `/__/meta/{entryPath}`  | Metadata for one entry (size, method, ETag, type)           |
 | `GET`        | `/__/health`            | Liveness probe (never touches the origin)                   |
