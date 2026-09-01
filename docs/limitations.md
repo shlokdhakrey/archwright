@@ -6,7 +6,7 @@ Honest boundaries, and why each exists.
 
 The entire approach depends on `Range` requests to read the ZIP index and stream
 one entry. Object stores (R2, S3, GCS, Azure Blob) and most CDNs support ranges.
-If an origin ignores ranges and returns the whole body, ZipStream only proceeds
+If an origin ignores ranges and returns the whole body, Archwright only proceeds
 when that body is small enough to buffer (`MAX_CENTRAL_DIRECTORY_BYTES`);
 otherwise it returns an upstream error. Verify with
 `node scripts/probe-archive.mjs <url>`.

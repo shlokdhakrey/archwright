@@ -1,6 +1,6 @@
 # Security
 
-ZipStream fetches attacker-influenceable URLs (in multi-archive mode) and parses
+Archwright fetches attacker-influenceable URLs (in multi-archive mode) and parses
 attacker-influenceable bytes (any ZIP). This document describes the threat model
 and the controls. To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
@@ -109,4 +109,4 @@ allowlist and without exposing a proxy.
 - [ ] Restrict `CORS_ALLOW_ORIGIN` to your front-end origins if the API is not
       meant to be public.
 - [ ] Prefer HTTPS origins; keep the allowlist minimal.
-- [ ] Put ZipStream behind Cloudflare WAF / rate limiting for public deployments.
+- [ ] Put Archwright behind Cloudflare WAF / rate limiting for public deployments.

@@ -31,7 +31,7 @@ End-to-end smoke test against a deployed Worker. CI-friendly (non-zero exit on
 failure).
 
 ```bash
-node scripts/smoke.mjs https://zipstream.example.workers.dev movie.mkv
+node scripts/smoke.mjs https://archwright.example.workers.dev movie.mkv
 ```
 
 ## `check-bundle-size.mjs`

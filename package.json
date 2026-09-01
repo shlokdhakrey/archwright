@@ -1,5 +1,5 @@
 {
-  "name": "zipstream-worker",
+  "name": "archwright",
   "version": "1.0.0",
   "description": "Stream individual files out of a remote ZIP archive at the edge — no extraction, no storage, constant memory. A Cloudflare Workers reference implementation.",
   "keywords": [

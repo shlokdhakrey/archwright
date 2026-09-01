@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to ZipStream! -->
+<!-- Thanks for contributing to Archwright! -->
 
 ## What & why
 

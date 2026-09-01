@@ -10,7 +10,7 @@ The bytes fetched are not a valid ZIP, or the origin returned unexpected content
 
 - Confirm the URL is a real ZIP: `node scripts/probe-archive.mjs <url>`.
 - Ensure the origin serves the archive **identity-encoded** (no gzip transform).
-  ZipStream requests `Accept-Encoding: identity`; some proxies ignore it.
+  Archwright requests `Accept-Encoding: identity`; some proxies ignore it.
 - Check for a signed-URL expiry returning an error body.
 
 ## `502 upstream_error` / `504 upstream_timeout`
@@ -55,7 +55,7 @@ everything before it. This is expected; use STORED archives for fast seeking. Se
 
 The origin returned `200` (whole file) to a range request and the file is larger
 than `MAX_CENTRAL_DIRECTORY_BYTES`. The origin does not support ranges for this
-resource; ZipStream cannot stream from it. Use a range-capable origin.
+resource; Archwright cannot stream from it. Use a range-capable origin.
 
 ## A large DEFLATE download stops partway (browser may say "complete")
 
@@ -99,7 +99,7 @@ A download manager (IDM, 1DM, FDM, …) rejects a **DEFLATE** entry with an erro
 like `Download: libz::inflate() failed. cause: unknown compression method`. The
 same file downloads fine in a browser.
 
-**Why:** to serve large compressed entries at ≈ 0 CPU, ZipStream passes the entry's
+**Why:** to serve large compressed entries at ≈ 0 CPU, Archwright passes the entry's
 **raw** DEFLATE bytes through under `Content-Encoding: deflate` and lets the client
 inflate them (see [Limitations](limitations.md)). Browsers, `curl`, and most HTTP
 libraries accept raw DEFLATE — if the zlib header looks wrong they retry as raw
@@ -112,7 +112,7 @@ corrupt stream.
 
 - **Download in the browser.** Fully supported at any size — this is the primary
   path and needs no configuration.
-- **Configure the download manager to send `Accept-Encoding: identity`.** ZipStream
+- **Configure the download manager to send `Accept-Encoding: identity`.** Archwright
   then inflates server-side and returns a plain, unencoded file every client
   accepts. Bounded by the plan's CPU limit (~100 MB on Free; any size on Paid).
 - **Set `DEFLATE_PASSTHROUGH=false`** to force server-side inflation for *all*

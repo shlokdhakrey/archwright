@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Smoke-test a deployed ZipStream Worker end to end.
+// Smoke-test a deployed Archwright Worker end to end.
 //
 //   node scripts/smoke.mjs <workerBaseUrl> <entryPath>
 //

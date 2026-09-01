@@ -1,6 +1,6 @@
 # Architecture
 
-ZipStream is a layered Cloudflare Worker. Each layer has a single
+Archwright is a layered Cloudflare Worker. Each layer has a single
 responsibility, depends only on abstractions below it, and is independently
 testable. This document covers the component structure, the request lifecycle,
 the streaming pipeline, and the cache flow.
@@ -122,7 +122,7 @@ at `info`).
 
 ## ZIP reading strategy
 
-Which parts of a ZIP need random access vs. streaming — and how ZipStream reads
+Which parts of a ZIP need random access vs. streaming — and how Archwright reads
 each:
 
 | Structure                | Location               | Access        | How                                   |

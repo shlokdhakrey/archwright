@@ -40,7 +40,7 @@ node scripts/check-bundle-size.mjs
 Smoke-test the deployment:
 
 ```bash
-node scripts/smoke.mjs https://zipstream.<account>.workers.dev movie.mkv
+node scripts/smoke.mjs https://archwright.<account>.workers.dev movie.mkv
 ```
 
 ## Free vs Paid

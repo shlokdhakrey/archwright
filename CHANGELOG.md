@@ -45,4 +45,4 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   entry downloads.
 - Comprehensive test suite, benchmarks, and documentation.
 
-[1.0.0]: https://github.com/your-org/zipstream-worker/releases/tag/v1.0.0
+[1.0.0]: https://github.com/your-org/archwright/releases/tag/v1.0.0

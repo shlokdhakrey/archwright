@@ -1,4 +1,4 @@
-# ZipStream
+# Archwright
 
 **Stream individual files out of a remote ZIP archive at the edge — no
 extraction, no storage, constant memory.**
@@ -92,8 +92,8 @@ blocked). Otherwise restrict it with `ALLOWED_ARCHIVE_HOSTS` or signed links. Se
 ## Quick start
 
 ```bash
-git clone https://github.com/your-org/zipstream-worker
-cd zipstream-worker
+git clone https://github.com/your-org/archwright
+cd archwright
 npm install
 npm run cf-typegen            # generate Worker types
 

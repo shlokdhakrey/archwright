@@ -2,7 +2,7 @@
   // Multi-archive mode: front many archives, addressed via /a/{ref}/{entry}.
   // Leave ARCHIVE_URL empty (or omit it) to select this mode.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "zipstream-multi",
+  "name": "archwright-multi",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "observability": { "enabled": true },

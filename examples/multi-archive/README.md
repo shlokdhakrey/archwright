@@ -12,8 +12,8 @@ Set `ALLOWED_ARCHIVE_HOSTS`. The reference is the base64url of the archive URL.
 REF=$(node -e "process.stdout.write(Buffer.from('https://storage.googleapis.com/bucket/a.zip').toString('base64url'))")
 
 # List and download
-curl "https://zipstream-multi.workers.dev/a/$REF/__/list"
-curl -O "https://zipstream-multi.workers.dev/a/$REF/movie.mkv"
+curl "https://archwright-multi.workers.dev/a/$REF/__/list"
+curl -O "https://archwright-multi.workers.dev/a/$REF/movie.mkv"
 ```
 
 Only archives whose host is in the allowlist are fetched; everything else is
@@ -30,7 +30,7 @@ wrangler secret put ARCHIVE_SIGNING_SECRET   # e.g. openssl rand -hex 32
 # Mint a token that expires in 1 hour
 TOKEN=$(node scripts/sign-ref.mjs "$SECRET" "https://storage.googleapis.com/bucket/a.zip" 3600 | head -1)
 
-curl -O "https://zipstream-multi.workers.dev/a/$TOKEN/movie.mkv"
+curl -O "https://archwright-multi.workers.dev/a/$TOKEN/movie.mkv"
 ```
 
 With a signing secret configured, the allowlist becomes optional — the signature

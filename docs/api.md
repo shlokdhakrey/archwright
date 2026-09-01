@@ -261,7 +261,7 @@ Returns a single entry object (same shape as a `list` entry) plus the same
 ## `GET` `/__/health` — liveness
 
 ```json
-{ "status": "ok", "service": "zipstream", "time": "2026-07-25T17:00:00.000Z" }
+{ "status": "ok", "service": "archwright", "time": "2026-07-25T17:00:00.000Z" }
 ```
 
 Never contacts the origin — safe for uptime checks and load-balancer probes.

@@ -4,5 +4,5 @@ contact_links:
     url: https://developers.cloudflare.com/workers/
     about: Reference for the Workers runtime, limits, and APIs.
   - name: Security disclosure
-    url: https://github.com/your-org/zipstream-worker/security/advisories/new
+    url: https://github.com/your-org/archwright/security/advisories/new
     about: Please report security vulnerabilities privately (see SECURITY.md).

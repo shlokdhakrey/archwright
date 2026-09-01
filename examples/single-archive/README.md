@@ -16,16 +16,16 @@ npm run deploy
 
 ```bash
 # List what's inside
-curl https://zipstream-single.workers.dev/__/list
+curl https://archwright-single.workers.dev/__/list
 
 # Metadata for one entry
-curl https://zipstream-single.workers.dev/__/meta/movie.mkv
+curl https://archwright-single.workers.dev/__/meta/movie.mkv
 
 # Download (streams straight from inside the ZIP)
-curl -O https://zipstream-single.workers.dev/movie.mkv
+curl -O https://archwright-single.workers.dev/movie.mkv
 
 # Seek — first 10 MiB only (STORED entries seek instantly)
-curl -H 'Range: bytes=0-10485759' https://zipstream-single.workers.dev/movie.mkv -o head.bin
+curl -H 'Range: bytes=0-10485759' https://archwright-single.workers.dev/movie.mkv -o head.bin
 ```
 
 The client never knows the file came from inside a ZIP: it sees a normal

@@ -2,7 +2,7 @@
 
 ## `bench.mjs` — streaming decompression & memory
 
-Micro-benchmarks the two properties ZipStream depends on: native raw-DEFLATE
+Micro-benchmarks the two properties Archwright depends on: native raw-DEFLATE
 throughput, and constant memory while producing arbitrarily large output.
 
 ```bash

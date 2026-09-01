@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Micro-benchmark of the streaming primitives ZipStream is built on:
+// Micro-benchmark of the streaming primitives Archwright is built on:
 //   - native raw-DEFLATE decompression throughput (DecompressionStream)
 //   - constant memory while producing arbitrarily large logical output
 //

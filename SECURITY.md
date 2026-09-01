@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report security vulnerabilities **privately** via
-[GitHub Security Advisories](https://github.com/your-org/zipstream-worker/security/advisories/new)
+[GitHub Security Advisories](https://github.com/your-org/archwright/security/advisories/new)
 rather than opening a public issue.
 
 We aim to acknowledge reports within 3 business days and to ship a fix or
@@ -11,7 +11,7 @@ mitigation for confirmed issues promptly.
 
 ## Scope and threat model
 
-ZipStream fetches remote ZIP archives and streams their entries to clients. The
+Archwright fetches remote ZIP archives and streams their entries to clients. The
 most relevant risks and the controls that address them:
 
 | Risk                                                   | Control                                                                                                                                                    |

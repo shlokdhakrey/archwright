@@ -1,6 +1,6 @@
-# Contributing to ZipStream
+# Contributing to Archwright
 
-Thanks for your interest in improving ZipStream! This project aims to be a
+Thanks for your interest in improving Archwright! This project aims to be a
 correct, secure, and maintainable reference implementation, so contributions are
 held to a high bar — and the tooling makes that easy.
 

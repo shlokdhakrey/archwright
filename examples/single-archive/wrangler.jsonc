@@ -1,7 +1,7 @@
 {
   // Single-archive mode: serve entries of ONE archive at the path root.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "zipstream-single",
+  "name": "archwright-single",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "observability": { "enabled": true },

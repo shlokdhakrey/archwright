@@ -4,7 +4,7 @@ import type { CacheStore, Clock } from '../types/io.js';
  * A cache namespace URL. Cache API keys are `Request`s, so we synthesise a
  * stable, private URL space that never collides with real traffic.
  */
-const CACHE_NAMESPACE = 'https://cache.zipstream.internal/';
+const CACHE_NAMESPACE = 'https://cache.archwright.internal/';
 
 /**
  * {@link CacheStore} over the Workers Cache API (per-colo, free, fast).
