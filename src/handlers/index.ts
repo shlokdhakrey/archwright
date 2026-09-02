@@ -4,6 +4,7 @@ export {
   prepareBundleHandler,
 } from './bundle.js';
 export { downloadHandler } from './download.js';
+export { faviconHandler } from './favicon.js';
 export { healthHandler } from './health.js';
 export { listHandler } from './list.js';
 export { metaHandler } from './meta.js';

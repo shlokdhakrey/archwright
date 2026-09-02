@@ -2,6 +2,7 @@ import {
   bundleDownloadHandler,
   createBundleHandler,
   downloadHandler,
+  faviconHandler,
   healthHandler,
   listHandler,
   metaHandler,
@@ -36,6 +37,8 @@ export const router: Handler = async (ctx: RequestContext): Promise<Response> =>
       return versionHandler(ctx);
     case 'options':
       return optionsHandler(ctx);
+    case 'favicon':
+      return faviconHandler(ctx);
     case 'shorten':
       return shortenHandler(ctx);
     case 'bundle-create':

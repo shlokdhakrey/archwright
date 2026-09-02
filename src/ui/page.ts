@@ -1,4 +1,5 @@
 import { SERVICE_NAME, VERSION } from '../constants/app.js';
+import { FAVICON_LINK } from './favicon.js';
 
 /** Config injected into the page so the client knows how to build API URLs. */
 export interface UiConfig {
@@ -22,6 +23,7 @@ export function renderAppPage(config: UiConfig): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${SERVICE_NAME} — stream files from a remote ZIP</title>
+${FAVICON_LINK}
 <style>
   :root {
     --bg: #f7f8fa; --panel: #ffffff; --text: #1a1d21; --muted: #6b7280;

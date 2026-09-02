@@ -16,6 +16,7 @@ export type Route =
   | { readonly kind: 'health' }
   | { readonly kind: 'version' }
   | { readonly kind: 'options' }
+  | { readonly kind: 'favicon' }
   | { readonly kind: 'shorten' }
   | { readonly kind: 'bundle-create' }
   | { readonly kind: 'bundle-prepare'; readonly code: string }
@@ -62,6 +63,8 @@ export async function resolveRoute(ctx: RequestContext): Promise<Route> {
   // Global, archive-independent control endpoints.
   if (path === `/${prefix}/health`) return { kind: 'health' };
   if (path === `/${prefix}/version`) return { kind: 'version' };
+  // Pages inline their icon, so this only catches old browsers and direct hits.
+  if (path === '/favicon.ico') return { kind: 'favicon' };
   if (path === '/') return { kind: 'root' };
 
   // Bundles: one archive assembled from many remote files.

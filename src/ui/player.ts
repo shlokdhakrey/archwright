@@ -1,5 +1,6 @@
 import { SERVICE_NAME } from '../constants/app.js';
 import type { SubtitleTrack } from '../http/media.js';
+import { FAVICON_LINK } from './favicon.js';
 
 /** Everything the player page needs, resolved by the handler. */
 export interface PlayerConfig {
@@ -87,6 +88,7 @@ export function renderPlayerPage(config: PlayerConfig): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${title} — ${SERVICE_NAME}</title>
+${FAVICON_LINK}
 <style>
   :root {
     --bg: #0b0d0f; --panel: #14181b; --text: #e9edef; --muted: #9aa5ac;
