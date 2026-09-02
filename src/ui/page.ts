@@ -55,7 +55,10 @@ ${FAVICON_LINK}
   .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
   .msg { margin-top: 16px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); }
   .msg.error { color: var(--danger); border-color: var(--danger); }
-  .msg.hidden, .hidden { display: none; }
+  /* Utility: must beat any later component rule of equal specificity.
+     The .bar display:flex rule below is declared later and used to win,
+     which kept the action bar on screen even when marked hidden. */
+  .msg.hidden, .hidden { display: none !important; }
   table { width: 100%; border-collapse: collapse; margin-top: 20px; }
   th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
   th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -69,6 +72,8 @@ ${FAVICON_LINK}
     border-top: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center;
     gap: 12px; justify-content: center; }
   .bar .info { color: var(--muted); font-size: 14px; margin-right: auto; }
+  .bar .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
+  .bar .barlabel { color: var(--muted); font-size: 13px; white-space: nowrap; }
   .bar-inner { max-width: 920px; width: 100%; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
   .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent);
     border-radius: 50%; animation: spin 0.7s linear infinite; }
@@ -159,9 +164,11 @@ ${FAVICON_LINK}
 <div class="bar hidden" id="bar">
   <div class="bar-inner">
     <span class="info" id="selinfo">0 selected</span>
-    <button id="each">Download each</button>
-    <button class="primary" id="zip">Download as ZIP</button>
-    <button id="tar">Download as TAR</button>
+    <button id="each">Download separately</button>
+    <span class="sep"></span>
+    <span class="barlabel">Combine into one archive</span>
+    <button class="primary" id="zip">ZIP</button>
+    <button id="tar">TAR</button>
   </div>
 </div>
 
@@ -384,8 +391,10 @@ ${FAVICON_LINK}
   }
 
   $('make').addEventListener('click', function () {
-    var urls = $('urls').value.split('
-').map(function (line) { return line.trim(); })
+    // Split on newlines via a char code, not an escape: this whole file is a
+    // template literal, where a backslash-n would be consumed as a real
+    // newline and leave an unterminated string in the emitted script.
+    var urls = $('urls').value.split(String.fromCharCode(10)).map(function (line) { return line.trim(); })
       .filter(function (line) { return line.length > 0; });
     if (!urls.length) { bundleMsg('Paste at least one file URL.', true); return; }
     bundleMsg('');
