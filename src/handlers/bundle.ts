@@ -109,9 +109,14 @@ export async function createBundleHandler(ctx: RequestContext): Promise<Response
   }
   if (files.length === 0) throw new BadRequestError('no valid files given');
 
-  const bundle: Bundle = { name: bundleName(name), files: dedupeNames(files) };
-  const code = await putBundle(kv, bundle, ctx.config.shortLinkTtlSeconds);
-  ctx.log.info('bundle created', { code, files: files.length, bytes: totalBytes(bundle) });
+  const draft: Bundle = { name: bundleName(name), files: dedupeNames(files) };
+  const { code, bundle } = await putBundle(kv, draft, ctx.config.shortLinkTtlSeconds);
+  ctx.log.info('bundle created', {
+    code,
+    files: files.length,
+    bytes: totalBytes(bundle),
+    zipReady: isZipReady(bundle),
+  });
 
   return jsonResponse(ctx, bundleSummary(code, bundle));
 }

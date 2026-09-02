@@ -215,6 +215,26 @@ describe('bundle — ZIP (needs prepared checksums)', () => {
   });
 });
 
+describe('bundle — re-creation', () => {
+  it('keeps prepared checksums when the same files are submitted again', async () => {
+    const harness = setup();
+    const first = await createBundle(harness);
+
+    const prepared = await harness.request(`/__/bundle/${first.code}/prepare`, { method: 'POST' });
+    expect(((await prepared.json()) as Summary).complete).toBe(true);
+
+    // Re-submitting (as happens when a signed URL is refreshed) must not throw
+    // away the completed pass.
+    const again = await createBundle(harness);
+    expect(again.code).toBe(first.code);
+    expect(again.zipReady).toBe(true);
+    expect(again.crcRemaining).toBe(0);
+
+    // And the ZIP is servable immediately, without preparing a second time.
+    expect((await harness.request(again.zip)).status).toBe(200);
+  });
+});
+
 describe('bundle — errors', () => {
   it('returns 404 for an unknown code', async () => {
     const harness = setup();

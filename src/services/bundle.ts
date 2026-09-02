@@ -74,15 +74,44 @@ export function isValidBundleCode(code: string): boolean {
   return code.length > 0 && code.length <= 64 && /^[A-Za-z0-9_-]+$/.test(code);
 }
 
-/** Store (or refresh) a bundle manifest, returning its code. */
+/**
+ * Store (or refresh) a bundle manifest, returning its code.
+ *
+ * Re-submitting the same files is routine — a signed source URL expires and has
+ * to be handed in again — so any checksums already computed are carried across
+ * rather than discarded. Without this, refreshing a link would silently throw
+ * away a completed prepare pass and make the caller redo it.
+ *
+ * A checksum is only reused when the object it describes is unmistakably the
+ * same: identical entry name and byte length.
+ */
 export async function putBundle(
   kv: KVNamespace,
   bundle: Bundle,
   ttlSeconds: number,
-): Promise<string> {
+): Promise<{ code: string; bundle: Bundle }> {
   const code = await deriveBundleCode(bundle.files.map((file) => file.url));
-  await writeBundle(kv, code, bundle, ttlSeconds);
-  return code;
+  const existing = await getBundle(kv, code);
+  const merged = existing ? { ...bundle, files: carryChecksums(existing, bundle) } : bundle;
+  await writeBundle(kv, code, merged, ttlSeconds);
+  // Return what was actually stored: the caller reports it, and the carried
+  // checksums must show up there or the response contradicts the manifest.
+  return { code, bundle: merged };
+}
+
+/** Copy checksum progress from a previous manifest onto a fresh one. */
+function carryChecksums(previous: Bundle, next: Bundle): BundleFile[] {
+  const known = new Map(previous.files.map((file) => [file.name + String(file.size), file]));
+  return next.files.map((file) => {
+    const before = known.get(file.name + String(file.size));
+    if (!before) return file;
+    return {
+      ...file,
+      ...(before.crc32 === undefined ? {} : { crc32: before.crc32 }),
+      ...(before.crcDone === undefined ? {} : { crcDone: before.crcDone }),
+      ...(before.crcState === undefined ? {} : { crcState: before.crcState }),
+    };
+  });
 }
 
 /** Overwrite an existing manifest in place (used to cache CRC progress). */
