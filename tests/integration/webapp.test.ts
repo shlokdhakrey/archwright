@@ -50,7 +50,7 @@ describe('browser UI', () => {
     const res = await harness.request('/extract');
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
-    expect(await res.text()).toContain('window.ZS');
+    expect(await res.text()).toContain('window.AW');
   });
 
   it('renders a styled 404 for a browser, and JSON for an API client', async () => {

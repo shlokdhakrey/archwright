@@ -1,6 +1,9 @@
 import { Script } from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { renderAppPage } from '../../src/ui/page.js';
+import { renderBundlePage } from '../../src/ui/pages/bundle.js';
+import { renderExtractPage } from '../../src/ui/pages/extract.js';
+import { renderHomePage } from '../../src/ui/pages/home.js';
+import { renderNotFoundPage } from '../../src/ui/pages/not-found.js';
 import { renderPlayerPage } from '../../src/ui/player.js';
 
 /**
@@ -33,12 +36,21 @@ function expectParses(html: string, label: string): void {
 }
 
 describe('rendered UI scripts are syntactically valid', () => {
-  it('parses the main page in multi-archive mode', () => {
-    expectParses(renderAppPage({ mode: 'multi', prefix: '__', open: true }), 'app/multi');
+  it('parses the extract page in multi-archive mode', () => {
+    expectParses(renderExtractPage({ mode: 'multi', prefix: '__', open: true }), 'extract/multi');
   });
 
-  it('parses the main page in single-archive mode', () => {
-    expectParses(renderAppPage({ mode: 'single', prefix: '__', open: false }), 'app/single');
+  it('parses the extract page in single-archive mode', () => {
+    expectParses(renderExtractPage({ mode: 'single', prefix: '__', open: false }), 'extract/single');
+  });
+
+  it('parses the bundle page', () => {
+    expectParses(renderBundlePage({ prefix: '__' }), 'bundle');
+  });
+
+  it('parses the static pages', () => {
+    expectParses(renderHomePage(), 'home');
+    expectParses(renderNotFoundPage(), 'not-found');
   });
 
   it('parses the player page, with and without subtitles', () => {
@@ -65,7 +77,7 @@ describe('rendered UI scripts are syntactically valid', () => {
 
   it('emits no stray raw newline inside a single-quoted string', () => {
     // The exact shape of the bug this suite exists for.
-    const html = renderAppPage({ mode: 'multi', prefix: '__', open: true });
+    const html = renderExtractPage({ mode: 'multi', prefix: '__', open: true });
     for (const code of scriptBlocks(html)) {
       expect(code).not.toMatch(/'[^'\n]*\n[^'\n]*'\s*\)/);
     }
