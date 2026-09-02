@@ -33,14 +33,36 @@ async function readEntry(archive: ZipArchive, name: string): Promise<Uint8Array>
 }
 
 describe('browser UI', () => {
-  it('serves the HTML app at / by default', async () => {
+  it('serves the homepage at / by default', async () => {
     const harness = await singleHarness();
     const res = await harness.request('/');
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
     const html = await res.text();
     expect(html).toContain('archwright');
-    expect(html).toContain('window.ZS');
+    // The homepage introduces the two directions rather than being the tool.
+    expect(html).toContain('Open an archive');
+    expect(html).toContain('Build an archive');
+  });
+
+  it('serves the archive tool at /extract', async () => {
+    const harness = await singleHarness();
+    const res = await harness.request('/extract');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    expect(await res.text()).toContain('window.ZS');
+  });
+
+  it('renders a styled 404 for a browser, and JSON for an API client', async () => {
+    const harness = await singleHarness();
+    const page = await harness.request('/nope-not-here', { headers: { accept: 'text/html' } });
+    expect(page.status).toBe(404);
+    expect(page.headers.get('content-type')).toContain('text/html');
+    expect(await page.text()).toContain('does not lead anywhere');
+
+    const api = await harness.request('/nope-not-here', { headers: { accept: 'application/json' } });
+    expect(api.status).toBe(404);
+    expect(api.headers.get('content-type')).toContain('application/json');
   });
 
   it('serves the JSON index when SERVE_UI=false', async () => {

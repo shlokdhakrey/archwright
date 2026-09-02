@@ -17,6 +17,8 @@ export type Route =
   | { readonly kind: 'version' }
   | { readonly kind: 'options' }
   | { readonly kind: 'favicon' }
+  | { readonly kind: 'home' }
+  | { readonly kind: 'page'; readonly name: SitePage }
   | { readonly kind: 'shorten' }
   | { readonly kind: 'bundle-create' }
   | { readonly kind: 'bundle-prepare'; readonly code: string }
@@ -30,6 +32,10 @@ export type Route =
   | { readonly kind: 'download'; readonly archiveUrl: string; readonly entryPath: string };
 
 const ALLOWED_METHODS = [HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS] as const;
+
+/** Standalone pages of the site itself, reserved ahead of archive entries. */
+export type SitePage = 'extract' | 'bundle' | 'guide';
+const SITE_PAGES: ReadonlySet<string> = new Set(['extract', 'bundle', 'guide']);
 
 /**
  * Map a request to a {@link Route}. Method and the two addressing modes are
@@ -65,7 +71,15 @@ export async function resolveRoute(ctx: RequestContext): Promise<Route> {
   if (path === `/${prefix}/version`) return { kind: 'version' };
   // Pages inline their icon, so this only catches old browsers and direct hits.
   if (path === '/favicon.ico') return { kind: 'favicon' };
-  if (path === '/') return { kind: 'root' };
+  if (path === '/') return { kind: 'home' };
+
+  // Site pages are reserved names, checked before an archive entry could claim
+  // them: in single-archive mode an entry called "guide" is unreachable at that
+  // path, which is a fair trade for stable navigation.
+  const pageName = path.slice(1);
+  if (SITE_PAGES.has(pageName)) {
+    return { kind: 'page', name: pageName as SitePage };
+  }
 
   // Bundles: one archive assembled from many remote files.
   const bundleMatch = /^\/bundle\/([^/]+)\.(tar|zip)$/.exec(path);

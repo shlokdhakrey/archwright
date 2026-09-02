@@ -4,9 +4,11 @@ import {
   downloadHandler,
   faviconHandler,
   healthHandler,
+  homeHandler,
   listHandler,
   metaHandler,
   optionsHandler,
+  pageHandler,
   playHandler,
   prepareBundleHandler,
   rootHandler,
@@ -39,6 +41,10 @@ export const router: Handler = async (ctx: RequestContext): Promise<Response> =>
       return optionsHandler(ctx);
     case 'favicon':
       return faviconHandler(ctx);
+    case 'home':
+      return homeHandler(ctx);
+    case 'page':
+      return pageHandler(ctx, route.name);
     case 'shorten':
       return shortenHandler(ctx);
     case 'bundle-create':

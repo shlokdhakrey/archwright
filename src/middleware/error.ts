@@ -1,4 +1,6 @@
+import { Header, Status } from '../constants/http.js';
 import { normalizeError, toErrorResponse } from '../errors/index.js';
+import { renderNotFoundPage } from '../ui/pages/not-found.js';
 import { isAbortError } from '../utils/async.js';
 import type { Middleware } from './types.js';
 
@@ -35,6 +37,22 @@ export function errorBoundary(): Middleware {
         ctx.log.error('request failed', { ...fields, error: describeError(error) });
       } else {
         ctx.log.warn('request rejected', { ...fields, message: httpError.message });
+      }
+      // A browser that wandered onto a dead link deserves the site's own 404,
+      // not a JSON payload. API clients still get JSON.
+      if (
+        httpError.status === Status.NOT_FOUND &&
+        ctx.config.serveUi &&
+        (ctx.request.headers.get('accept') ?? '').includes('text/html')
+      ) {
+        return new Response(renderNotFoundPage(), {
+          status: Status.NOT_FOUND,
+          headers: {
+            [Header.CONTENT_TYPE]: 'text/html; charset=utf-8',
+            [Header.CACHE_CONTROL]: 'no-store',
+            [Header.X_REQUEST_ID]: ctx.requestId,
+          },
+        });
       }
       return toErrorResponse(error, ctx.requestId);
     }

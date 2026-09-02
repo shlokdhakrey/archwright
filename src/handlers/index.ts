@@ -13,6 +13,6 @@ export { playHandler, subtitleHandler } from './play.js';
 export { rootHandler } from './root.js';
 export { shortenHandler } from './shorten.js';
 export { tarHandler } from './tar.js';
-export { uiHandler } from './ui.js';
+export { homeHandler, notFoundPageHandler, pageHandler, uiHandler } from './ui.js';
 export { versionHandler } from './version.js';
 export { zipHandler } from './zip.js';
